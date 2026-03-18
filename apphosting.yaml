@@ -7,7 +7,7 @@ env:
   - variable: FIREBASE_PROJECT_ID
     value: recording-6ea14
   - variable: FIREBASE_STORAGE_BUCKET
-    value: recording-6ea14.firebasestorage.app
+    value: recording-6ea14-recordingxx-audio
   - variable: FIREBASE_DATABASE_ID
     value: (default)
   - variable: APP_BASE_URL
