@@ -11,6 +11,6 @@ env:
   - variable: FIREBASE_DATABASE_ID
     value: (default)
   - variable: APP_BASE_URL
-    value: https://REPLACE_AFTER_BACKEND_CREATE
+    value: https://recordingxx--recording-6ea14.asia-east1.hosted.app/
   - variable: RATE_LIMIT_SALT
     value: dNONHabEHCH4SiBLOgy8aHF8er8n5KYcZewMUxm3Tg
