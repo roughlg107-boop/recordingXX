@@ -34,11 +34,6 @@ export const reportModelOptions: ModelOption[] = [
     value: "gpt-4o",
     label: "gpt-4o",
     note: "品質優先｜效果高、成本中"
-  },
-  {
-    value: "gpt-5.4",
-    label: "gpt-5.4",
-    note: "旗艦分析｜效果最佳、成本高"
   }
 ];
 
