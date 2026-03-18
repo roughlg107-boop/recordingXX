@@ -2,45 +2,11 @@ import { createReadStream } from "fs";
 
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { z } from "zod";
-
 import { AppError } from "@/lib/errors";
 import { visitReportGenerationSchema } from "@/lib/report-schema";
 
-const validationSchema = z.object({
-  ok: z.literal("OK")
-});
-
 function getClient(apiKey: string) {
   return new OpenAI({ apiKey });
-}
-
-function createSilentWavFile() {
-  const sampleRate = 8000;
-  const channels = 1;
-  const bitsPerSample = 16;
-  const durationMs = 200;
-  const sampleCount = Math.floor((sampleRate * durationMs) / 1000);
-  const dataSize = sampleCount * channels * (bitsPerSample / 8);
-  const buffer = Buffer.alloc(44 + dataSize);
-
-  buffer.write("RIFF", 0);
-  buffer.writeUInt32LE(36 + dataSize, 4);
-  buffer.write("WAVE", 8);
-  buffer.write("fmt ", 12);
-  buffer.writeUInt32LE(16, 16);
-  buffer.writeUInt16LE(1, 20);
-  buffer.writeUInt16LE(channels, 22);
-  buffer.writeUInt32LE(sampleRate, 24);
-  buffer.writeUInt32LE(sampleRate * channels * (bitsPerSample / 8), 28);
-  buffer.writeUInt16LE(channels * (bitsPerSample / 8), 32);
-  buffer.writeUInt16LE(bitsPerSample, 34);
-  buffer.write("data", 36);
-  buffer.writeUInt32LE(dataSize, 40);
-
-  return new File([new Uint8Array(buffer)], "validation.wav", {
-    type: "audio/wav"
-  });
 }
 
 export async function validateOpenAiSettings(input: {
@@ -50,13 +16,8 @@ export async function validateOpenAiSettings(input: {
 }) {
   const client = getClient(input.openAiApiKey);
 
-  await client.audio.transcriptions.create({
-    file: createSilentWavFile(),
-    model: input.transcriptionModel,
-    response_format: "text"
-  });
-
-  await client.chat.completions.parse({
+  await client.models.retrieve(input.transcriptionModel);
+  await client.chat.completions.create({
     model: input.reportModel,
     temperature: 0,
     messages: [
@@ -69,7 +30,7 @@ export async function validateOpenAiSettings(input: {
         content: "Return OK."
       }
     ],
-    response_format: zodResponseFormat(validationSchema, "validation")
+    max_tokens: 12
   });
 }
 

@@ -74,7 +74,7 @@ export async function consumeUploadSession(input: {
     if (
       data.fileName !== input.fileName ||
       data.fileSize !== input.fileSize ||
-      (data.mimeType || "") !== (input.mimeType || "")
+      ((data.mimeType || "") && (input.mimeType || "") && data.mimeType !== input.mimeType)
     ) {
       throw new AppError("錄音檔與初始化資訊不一致，請重新上傳。", 400, "upload_session_payload_mismatch");
     }
