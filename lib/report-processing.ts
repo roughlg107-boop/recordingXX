@@ -14,7 +14,8 @@ import {
   downloadTemporaryAudioToTempFile,
   uploadTemporaryAudioStream
 } from "@/lib/storage";
-import { generateVisitReport, transcribeAudio } from "@/lib/openai";
+import { generateVisitReportWithProvider, transcribeAudioWithProvider } from "@/lib/ai-provider";
+import type { AiProvider } from "@/lib/ai-providers";
 import { heartbeatActiveJobSlot, releaseActiveJobSlot } from "@/lib/rate-limit";
 import { toErrorMessage } from "@/lib/errors";
 
@@ -32,6 +33,7 @@ type QueueInput = {
 
 export async function queueReportJob(input: QueueInput) {
   let reportCreated = false;
+  let objectPath = "";
 
   try {
     await createQueuedReport({
@@ -46,7 +48,7 @@ export async function queueReportJob(input: QueueInput) {
     });
     reportCreated = true;
 
-    const objectPath = await uploadTemporaryAudioStream(
+    objectPath = await uploadTemporaryAudioStream(
       input.reportId,
       input.fileName,
       input.mimeType,
@@ -56,6 +58,9 @@ export async function queueReportJob(input: QueueInput) {
 
     return { reportId: input.reportId, objectPath };
   } catch (error) {
+    if (objectPath) {
+      await deleteTemporaryAudio(objectPath).catch(() => undefined);
+    }
     if (reportCreated) {
       await failReport(input.reportId, toErrorMessage(error));
     }
@@ -65,7 +70,8 @@ export async function queueReportJob(input: QueueInput) {
 
 export async function processReportJob(input: {
   claim: ReportProcessingClaim;
-  openAiApiKey: string;
+  provider: AiProvider;
+  apiKey: string;
   transcriptionModel: string;
   reportModel: string;
   processingLeaseMs: number;
@@ -84,17 +90,20 @@ export async function processReportJob(input: {
     await heartbeatActiveJobSlot(input.claim.sessionHash, input.claim.reportId, input.processingLeaseMs);
 
     tempFilePath = await downloadTemporaryAudioToTempFile(input.claim.objectPath, input.claim.fileName);
-    const transcript = await transcribeAudio({
-      apiKey: input.openAiApiKey,
+    const transcript = await transcribeAudioWithProvider({
+      provider: input.provider,
+      apiKey: input.apiKey,
       model: input.transcriptionModel,
-      filePath: tempFilePath
+      filePath: tempFilePath,
+      mimeType: input.claim.mimeType
     });
 
     await heartbeatReportProcessing(input.claim.reportId, input.processingLeaseMs);
     await heartbeatActiveJobSlot(input.claim.sessionHash, input.claim.reportId, input.processingLeaseMs);
 
-    const report = await generateVisitReport({
-      apiKey: input.openAiApiKey,
+    const report = await generateVisitReportWithProvider({
+      provider: input.provider,
+      apiKey: input.apiKey,
       model: input.reportModel,
       shopName: input.claim.shopName,
       salesName: input.claim.salesName,

@@ -36,7 +36,8 @@ export async function POST(request: NextRequest) {
       salesName: formData.get("salesName"),
       visitDate: formData.get("visitDate"),
       uploadToken: formData.get("uploadToken"),
-      openAiApiKey: formData.get("openAiApiKey"),
+      provider: formData.get("provider"),
+      apiKey: formData.get("apiKey"),
       transcriptionModel: formData.get("transcriptionModel"),
       reportModel: formData.get("reportModel")
     });

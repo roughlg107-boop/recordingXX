@@ -1,4 +1,7 @@
 import { createReadStream } from "fs";
+import { mkdtemp, rm, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
@@ -7,6 +10,51 @@ import { visitReportGenerationSchema } from "@/lib/report-schema";
 
 function getClient(apiKey: string) {
   return new OpenAI({ apiKey });
+}
+
+function createValidationWavBuffer() {
+  const sampleRate = 16_000;
+  const durationSeconds = 1;
+  const totalSamples = sampleRate * durationSeconds;
+  const bytesPerSample = 2;
+  const dataSize = totalSamples * bytesPerSample;
+  const buffer = Buffer.alloc(44 + dataSize);
+
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write("WAVE", 8);
+  buffer.write("fmt ", 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * bytesPerSample, 28);
+  buffer.writeUInt16LE(bytesPerSample, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(dataSize, 40);
+
+  for (let sampleIndex = 0; sampleIndex < totalSamples; sampleIndex += 1) {
+    const time = sampleIndex / sampleRate;
+    const sampleValue = Math.sin(2 * Math.PI * 440 * time) * 0.08;
+    buffer.writeInt16LE(Math.round(sampleValue * 32767), 44 + sampleIndex * bytesPerSample);
+  }
+
+  return buffer;
+}
+
+async function withTemporaryValidationAudio<T>(
+  run: (input: { filePath: string }) => Promise<T>
+) {
+  const directory = await mkdtemp(join(tmpdir(), "recordingxx-validate-"));
+  const filePath = join(directory, "validation-tone.wav");
+
+  try {
+    await writeFile(filePath, createValidationWavBuffer());
+    return await run({ filePath });
+  } finally {
+    await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
 
 function normalizeOpenAiError(error: unknown): AppError {
@@ -44,14 +92,21 @@ function normalizeOpenAiError(error: unknown): AppError {
 }
 
 export async function validateOpenAiSettings(input: {
-  openAiApiKey: string;
+  apiKey: string;
   transcriptionModel: string;
   reportModel: string;
 }) {
   try {
-    const client = getClient(input.openAiApiKey);
+    const client = getClient(input.apiKey);
 
-    await client.models.retrieve(input.transcriptionModel);
+    await withTemporaryValidationAudio(async ({ filePath }) => {
+      await client.audio.transcriptions.create({
+        file: createReadStream(filePath),
+        model: input.transcriptionModel,
+        response_format: "text",
+        prompt: "This is a model capability validation request."
+      });
+    });
     await client.chat.completions.create({
       model: input.reportModel,
       temperature: 0,

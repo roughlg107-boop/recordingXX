@@ -66,6 +66,12 @@ function getExpiryTimestamp() {
   return Timestamp.fromDate(new Date(Date.now() + REPORT_RETENTION_HOURS * 60 * 60 * 1000));
 }
 
+function assertReportSessionAccess(data: StoredReport, sessionHash?: string) {
+  if (sessionHash && data.sessionHash && data.sessionHash !== sessionHash) {
+    throw new AppError("這份報告不屬於目前的瀏覽器工作階段。", 403, "report_session_mismatch");
+  }
+}
+
 export async function createQueuedReport(input: {
   id: string;
   shopName: string;
@@ -224,7 +230,7 @@ export async function failReport(id: string, errorMessage: string) {
   );
 }
 
-export async function getReport(id: string) {
+export async function getReport(id: string, sessionHash?: string) {
   const snapshot = await getDb().collection(REPORT_COLLECTION).doc(id).get();
   if (!snapshot.exists) {
     return null;
@@ -235,10 +241,12 @@ export async function getReport(id: string) {
     return null;
   }
 
+  assertReportSessionAccess(data, sessionHash);
+
   return serializeReport(snapshot.id, data);
 }
 
-export async function getReportStatus(id: string) {
+export async function getReportStatus(id: string, sessionHash?: string) {
   const snapshot = await getDb().collection(REPORT_COLLECTION).doc(id).get();
   if (!snapshot.exists) {
     return null;
@@ -249,11 +257,13 @@ export async function getReportStatus(id: string) {
     return null;
   }
 
+  assertReportSessionAccess(data, sessionHash);
+
   return serializeReport(snapshot.id, data);
 }
 
-export async function assertReportExists(id: string) {
-  const report = await getReport(id);
+export async function assertReportExists(id: string, sessionHash?: string) {
+  const report = await getReport(id, sessionHash);
   if (!report) {
     throw new AppError("找不到這份報告，可能已到期。", 404, "report_not_found");
   }

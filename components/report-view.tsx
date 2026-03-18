@@ -19,7 +19,7 @@ export function ReportView({ initialReport }: { initialReport: VisitReportRecord
     }
 
     const settings = readLocalProviderSettings();
-    if (!settings.openAiApiKey || !settings.transcriptionModel || !settings.reportModel) {
+    if (!settings.apiKey || !settings.transcriptionModel || !settings.reportModel) {
       return;
     }
 

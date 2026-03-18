@@ -42,15 +42,32 @@ function verifySignedSessionValue(value: string, secret: string) {
   return sessionId;
 }
 
-export function getOrCreateClientSession(request: NextRequest, secret: string): ResolvedSession {
-  const existingValue = request.cookies.get(SESSION_COOKIE_NAME)?.value?.trim();
-  const existingSessionId = existingValue ? verifySignedSessionValue(existingValue, secret) : null;
+function resolveClientSessionFromCookieValue(
+  cookieValue: string | undefined,
+  secret: string
+): ResolvedSession | null {
+  const sessionId = cookieValue?.trim()
+    ? verifySignedSessionValue(cookieValue.trim(), secret)
+    : null;
 
-  if (existingSessionId) {
-    return {
-      sessionId: existingSessionId,
-      sessionHash: createSessionHash(existingSessionId, secret)
-    };
+  if (!sessionId) {
+    return null;
+  }
+
+  return {
+    sessionId,
+    sessionHash: createSessionHash(sessionId, secret)
+  };
+}
+
+export function getOrCreateClientSession(request: NextRequest, secret: string): ResolvedSession {
+  const existingSession = resolveClientSessionFromCookieValue(
+    request.cookies.get(SESSION_COOKIE_NAME)?.value,
+    secret
+  );
+
+  if (existingSession) {
+    return existingSession;
   }
 
   const sessionId = randomBytes(32).toString("base64url");
@@ -62,17 +79,29 @@ export function getOrCreateClientSession(request: NextRequest, secret: string): 
 }
 
 export function requireClientSession(request: NextRequest, secret: string): ResolvedSession {
-  const value = request.cookies.get(SESSION_COOKIE_NAME)?.value?.trim() || "";
-  const sessionId = verifySignedSessionValue(value, secret);
+  const session = resolveClientSessionFromCookieValue(
+    request.cookies.get(SESSION_COOKIE_NAME)?.value,
+    secret
+  );
 
-  if (!sessionId) {
+  if (!session) {
     throw new AppError("工作階段已失效，請重新整理頁面後再試。", 400, "invalid_client_session");
   }
 
-  return {
-    sessionId,
-    sessionHash: createSessionHash(sessionId, secret)
-  };
+  return session;
+}
+
+export function requireClientSessionFromCookieValue(
+  cookieValue: string | undefined,
+  secret: string
+) {
+  const session = resolveClientSessionFromCookieValue(cookieValue, secret);
+
+  if (!session) {
+    throw new AppError("工作階段已失效，請重新整理頁面後再試。", 400, "invalid_client_session");
+  }
+
+  return session;
 }
 
 export function setClientSessionCookie(response: NextResponse, cookieValue: string) {

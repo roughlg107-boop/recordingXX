@@ -41,7 +41,7 @@ $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $root
 
 if (-not $StorageBucket) {
-  $StorageBucket = "$ProjectId.firebasestorage.app"
+  $StorageBucket = "$ProjectId-recordingxx-audio"
 }
 
 if (-not $RateLimitSalt) {
@@ -58,6 +58,8 @@ $envValues = [ordered]@{
   RATE_LIMIT_WINDOW_MS = "900000"
   RATE_LIMIT_MAX_REQUESTS = "10"
   RATE_LIMIT_MAX_ACTIVE_JOBS = "2"
+  PROCESSING_LEASE_MS = "600000"
+  PROCESSING_HEARTBEAT_MS = "60000"
   RATE_LIMIT_SALT = $RateLimitSalt
 }
 
@@ -87,6 +89,10 @@ env:
     value: $AppBaseUrl
   - variable: RATE_LIMIT_SALT
     value: $RateLimitSalt
+  - variable: PROCESSING_LEASE_MS
+    value: "600000"
+  - variable: PROCESSING_HEARTBEAT_MS
+    value: "60000"
 "@
 
 Set-Content -Path (Join-Path $root "apphosting.yaml") -Value $appHostingYaml -NoNewline
@@ -120,6 +126,9 @@ Write-Host "ProjectId      : $ProjectId"
 Write-Host "StorageBucket  : $StorageBucket"
 Write-Host "BackendName    : $BackendName"
 Write-Host "AppBaseUrl     : $AppBaseUrl"
+Write-Host ""
+Write-Host "Note:"
+Write-Host "  Create the Cloud Storage bucket '$StorageBucket' in the same project before uploading audio."
 Write-Host ""
 Write-Host "Next:"
 Write-Host "  1. Run: .\scripts\firebase.ps1 login"

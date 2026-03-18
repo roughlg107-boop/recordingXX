@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, ShieldCheck } from "lucide-react";
+import { Check, ShieldCheck, Sparkles } from "lucide-react";
 
+import type { AiProvider } from "@/lib/ai-providers";
+import { getProviderKeyPlaceholder, getProviderLabel } from "@/lib/ai-providers";
 import {
   readLocalProviderSettings,
   writeLocalProviderSettings,
@@ -11,9 +13,9 @@ import {
 } from "@/lib/client-settings";
 import {
   CUSTOM_MODEL_VALUE,
+  getModelOptions,
   isRecommendedModel,
-  reportModelOptions,
-  transcriptionModelOptions
+  providerOptions
 } from "@/lib/model-options";
 
 type ValidationState =
@@ -21,9 +23,42 @@ type ValidationState =
   | { tone: "danger"; message: string }
   | { tone: "success"; message: string };
 
+function resolveSelection(
+  provider: AiProvider,
+  kind: "transcription" | "report",
+  value: string
+) {
+  const options = getModelOptions(provider)[kind];
+  if (!value) {
+    return "";
+  }
+
+  return isRecommendedModel(options, value) ? value : CUSTOM_MODEL_VALUE;
+}
+
+function applyProviderDefaults(provider: AiProvider, current: LocalProviderSettings): LocalProviderSettings {
+  const catalog = getModelOptions(provider);
+  const transcriptionModel =
+    current.provider === provider && current.transcriptionModel
+      ? current.transcriptionModel
+      : catalog.recommendedPair.transcriptionModel;
+  const reportModel =
+    current.provider === provider && current.reportModel
+      ? current.reportModel
+      : catalog.recommendedPair.reportModel;
+
+  return {
+    provider,
+    apiKey: current.provider === provider ? current.apiKey : "",
+    transcriptionModel,
+    reportModel
+  };
+}
+
 export function SettingsForm() {
   const [settings, setSettings] = useState<LocalProviderSettings>({
-    openAiApiKey: "",
+    provider: "openai",
+    apiKey: "",
     transcriptionModel: "",
     reportModel: ""
   });
@@ -33,26 +68,21 @@ export function SettingsForm() {
   const [isValidating, setIsValidating] = useState(false);
   const [state, setState] = useState<ValidationState>({
     tone: "idle",
-    message: "設定只會保存在目前瀏覽器。"
+    message: "設定只保存在目前瀏覽器。"
   });
 
   useEffect(() => {
     const localSettings = readLocalProviderSettings();
-    setSettings(localSettings);
+    const nextSettings =
+      localSettings.transcriptionModel && localSettings.reportModel
+        ? localSettings
+        : applyProviderDefaults(localSettings.provider, localSettings);
+
+    setSettings(nextSettings);
     setTranscriptionSelection(
-      localSettings.transcriptionModel
-        ? isRecommendedModel(transcriptionModelOptions, localSettings.transcriptionModel)
-          ? localSettings.transcriptionModel
-          : CUSTOM_MODEL_VALUE
-        : ""
+      resolveSelection(nextSettings.provider, "transcription", nextSettings.transcriptionModel)
     );
-    setReportSelection(
-      localSettings.reportModel
-        ? isRecommendedModel(reportModelOptions, localSettings.reportModel)
-          ? localSettings.reportModel
-          : CUSTOM_MODEL_VALUE
-        : ""
-    );
+    setReportSelection(resolveSelection(nextSettings.provider, "report", nextSettings.reportModel));
   }, []);
 
   function updateField(field: keyof LocalProviderSettings, value: string) {
@@ -60,6 +90,14 @@ export function SettingsForm() {
       ...current,
       [field]: value
     }));
+  }
+
+  function updateProvider(provider: AiProvider) {
+    const nextSettings = applyProviderDefaults(provider, settings);
+    setSettings(nextSettings);
+    setTranscriptionSelection(resolveSelection(provider, "transcription", nextSettings.transcriptionModel));
+    setReportSelection(resolveSelection(provider, "report", nextSettings.reportModel));
+    setState({ tone: "idle", message: `${getProviderLabel(provider)} 設定只保存在目前瀏覽器。` });
   }
 
   function updateTranscriptionSelection(value: string) {
@@ -103,7 +141,7 @@ export function SettingsForm() {
       }
 
       writeLocalProviderSettings(settings);
-      setState({ tone: "success", message: payload.message || "驗證成功，已同步保存到本機。" });
+      setState({ tone: "success", message: payload.message || "驗證成功，已保存到本機。" });
     } catch (error) {
       setState({
         tone: "danger",
@@ -114,100 +152,144 @@ export function SettingsForm() {
     }
   }
 
+  const catalog = getModelOptions(settings.provider);
+
   return (
-    <div className="grid hero-grid" style={{ gridTemplateColumns: "0.95fr 1.05fr" }}>
+    <div className="grid settings-grid">
       <section className="panel">
-        <div className="panel-content">
+        <div className="panel-content settings-side">
           <div className="eyebrow">
             <ShieldCheck size={14} />
-            本機模型設定
+            本機設定
           </div>
-          <h2 className="display-title">模型與 API Key，只保存在本機瀏覽器。</h2>
-          <p className="lead">這個頁面只負責本機設定，不會把 OpenAI Key 寫入系統資料庫。</p>
-          <div className="stack" style={{ marginTop: 24 }}>
-            <div className="notice">
-              <strong>建議：</strong>
-              先用個人 Key 驗證流程，再決定是否補做公司層級權限。
+          <h2 className="display-title">切換平台與模型</h2>
+          <p className="lead compact-lead">只存這台裝置。驗證完成後，首頁會直接沿用這組設定。</p>
+
+          <div className="compact-points">
+            <div className="point-row">
+              <strong>保存位置</strong>
+              <span>目前瀏覽器</span>
             </div>
-            <div className="notice">
-              <strong>推薦做法：</strong>
-              先從下拉選單選擇推薦模型；若有特殊需求，再切換成自訂模型。
+            <div className="point-row">
+              <strong>目前平台</strong>
+              <span>{getProviderLabel(settings.provider)}</span>
+            </div>
+            <div className="point-row">
+              <strong>推薦組合</strong>
+              <span>{catalog.recommendedPair.note}</span>
+            </div>
+          </div>
+
+          <div className="provider-summary">
+            <Sparkles size={16} />
+            <div>
+              <strong>{getProviderLabel(settings.provider)}</strong>
+              <span>
+                轉寫：{catalog.recommendedPair.transcriptionModel}
+                <br />
+                整理：{catalog.recommendedPair.reportModel}
+              </span>
             </div>
           </div>
         </div>
       </section>
 
       <section className="panel">
-        <div className="panel-content">
-          <div className="split-header">
+        <div className="panel-content form-panel">
+          <div className="split-header form-header">
             <div>
-              <div className="eyebrow">連線設定</div>
-              <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: "1.8rem" }}>OpenAI 連線設定</h3>
+              <div className="eyebrow">模型設定</div>
+              <h3 className="section-title">平台與模型</h3>
+              <p className="section-copy">先選平台，再驗證 Key 與模型。</p>
             </div>
-            <Link className="secondary-button" href="/">
-              返回送件頁
+            <Link className="secondary-button compact-button" href="/">
+              返回首頁
             </Link>
+          </div>
+
+          <div className="provider-tabs" role="tablist" aria-label="AI provider">
+            {providerOptions.map((option) => (
+              <button
+                key={option.value}
+                className="provider-tab"
+                data-active={settings.provider === option.value}
+                type="button"
+                onClick={() => updateProvider(option.value)}
+              >
+                <strong>{option.label}</strong>
+                <span>{option.value === "openai" ? "穩定熟悉" : "速度與多模態"}</span>
+              </button>
+            ))}
           </div>
 
           <div className="stack">
             <div className="field">
-              <label htmlFor="openAiApiKey">OpenAI API Key</label>
+              <label htmlFor="apiKey">{getProviderLabel(settings.provider)} API Key</label>
               <input
-                id="openAiApiKey"
+                id="apiKey"
                 type="password"
                 autoComplete="off"
-                value={settings.openAiApiKey}
-                onChange={(event) => updateField("openAiApiKey", event.target.value)}
-                placeholder="sk-..."
+                value={settings.apiKey}
+                onChange={(event) => updateField("apiKey", event.target.value)}
+                placeholder={getProviderKeyPlaceholder(settings.provider)}
               />
             </div>
 
-            <div className="field">
-              <label htmlFor="transcriptionModel">轉寫模型</label>
-              <select
-                id="transcriptionModel"
-                value={transcriptionSelection}
-                onChange={(event) => updateTranscriptionSelection(event.target.value)}
-              >
-                <option value="">請選擇轉寫模型</option>
-                {transcriptionModelOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}（{option.note}）
-                  </option>
-                ))}
-                <option value={CUSTOM_MODEL_VALUE}>自訂模型</option>
-              </select>
-              {transcriptionSelection === CUSTOM_MODEL_VALUE ? (
-                <input
-                  value={settings.transcriptionModel}
-                  onChange={(event) => updateField("transcriptionModel", event.target.value)}
-                  placeholder="輸入自訂轉寫模型名稱"
-                />
-              ) : null}
+            <div className="form-grid">
+              <div className="field">
+                <label htmlFor="transcriptionModel">轉寫模型</label>
+                <select
+                  id="transcriptionModel"
+                  value={transcriptionSelection}
+                  onChange={(event) => updateTranscriptionSelection(event.target.value)}
+                >
+                  <option value="">請選擇模型</option>
+                  {catalog.transcription.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}（{option.note}）
+                    </option>
+                  ))}
+                  <option value={CUSTOM_MODEL_VALUE}>自訂模型</option>
+                </select>
+                {transcriptionSelection === CUSTOM_MODEL_VALUE ? (
+                  <input
+                    value={settings.transcriptionModel}
+                    onChange={(event) => updateField("transcriptionModel", event.target.value)}
+                    placeholder="輸入自訂轉寫模型"
+                  />
+                ) : null}
+              </div>
+
+              <div className="field">
+                <label htmlFor="reportModel">整理模型</label>
+                <select
+                  id="reportModel"
+                  value={reportSelection}
+                  onChange={(event) => updateReportSelection(event.target.value)}
+                >
+                  <option value="">請選擇模型</option>
+                  {catalog.report.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}（{option.note}）
+                    </option>
+                  ))}
+                  <option value={CUSTOM_MODEL_VALUE}>自訂模型</option>
+                </select>
+                {reportSelection === CUSTOM_MODEL_VALUE ? (
+                  <input
+                    value={settings.reportModel}
+                    onChange={(event) => updateField("reportModel", event.target.value)}
+                    placeholder="輸入自訂整理模型"
+                  />
+                ) : null}
+              </div>
             </div>
 
-            <div className="field">
-              <label htmlFor="reportModel">報告整理模型</label>
-              <select
-                id="reportModel"
-                value={reportSelection}
-                onChange={(event) => updateReportSelection(event.target.value)}
-              >
-                <option value="">請選擇報告模型</option>
-                {reportModelOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}（{option.note}）
-                  </option>
-                ))}
-                <option value={CUSTOM_MODEL_VALUE}>自訂模型</option>
-              </select>
-              {reportSelection === CUSTOM_MODEL_VALUE ? (
-                <input
-                  value={settings.reportModel}
-                  onChange={(event) => updateField("reportModel", event.target.value)}
-                  placeholder="輸入自訂報告模型名稱"
-                />
-              ) : null}
+            <div className="recommend-band">
+              <strong>推薦</strong>
+              <span>
+                {catalog.recommendedPair.transcriptionModel} + {catalog.recommendedPair.reportModel}
+              </span>
             </div>
 
             <div className="notice" {...(state.tone !== "idle" ? { "data-tone": state.tone } : {})}>
@@ -215,17 +297,17 @@ export function SettingsForm() {
             </div>
 
             <div className="inline-actions">
-              <button className="button" type="button" disabled={isValidating} onClick={validateSettings}>
+              <button className="button wide-button" type="button" disabled={isValidating} onClick={validateSettings}>
                 {isValidating ? "驗證中..." : "驗證並儲存"}
               </button>
-              <button className="secondary-button" type="button" disabled={isSaving} onClick={saveLocally}>
-                {isSaving ? "儲存中..." : "只儲存到本機"}
+              <button className="secondary-button wide-button" type="button" disabled={isSaving} onClick={saveLocally}>
+                {isSaving ? "儲存中..." : "只儲存"}
               </button>
             </div>
 
             <div className="helper">
               <Check size={14} style={{ verticalAlign: "text-bottom", marginRight: 6 }} />
-              驗證成功後會同步寫入本機，回到送件頁即可直接使用。
+              驗證成功後，首頁送件會直接使用這組設定。
             </div>
           </div>
         </div>

@@ -24,7 +24,7 @@ export async function POST(
     const claim = await claimReportForProcessing(reportId, session.sessionHash, env.processingLeaseMs);
 
     if (!claim) {
-      const report = await getReportStatus(reportId);
+      const report = await getReportStatus(reportId, session.sessionHash);
 
       if (!report) {
         throw new AppError("找不到這份報告，可能已到期。", 404, "report_not_found");
@@ -36,7 +36,8 @@ export async function POST(
     after(async () => {
       await processReportJob({
         claim,
-        openAiApiKey: payload.openAiApiKey,
+        provider: payload.provider,
+        apiKey: payload.apiKey,
         transcriptionModel: payload.transcriptionModel,
         reportModel: payload.reportModel,
         processingLeaseMs: env.processingLeaseMs,
@@ -44,7 +45,7 @@ export async function POST(
       });
     });
 
-    const report = await getReportStatus(reportId);
+    const report = await getReportStatus(reportId, session.sessionHash);
     return jsonResponse({ ok: true, report }, 202);
   } catch (error) {
     const appError =

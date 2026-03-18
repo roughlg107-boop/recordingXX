@@ -1,45 +1,46 @@
 "use client";
 
+import type { AiProvider } from "@/lib/ai-providers";
+
 export type LocalProviderSettings = {
-  openAiApiKey: string;
+  provider: AiProvider;
+  apiKey: string;
   transcriptionModel: string;
   reportModel: string;
 };
 
 export const LOCAL_SETTINGS_KEY = "recordingxx.openai-settings";
 
+const defaultSettings: LocalProviderSettings = {
+  provider: "openai",
+  apiKey: "",
+  transcriptionModel: "",
+  reportModel: ""
+};
+
 export function readLocalProviderSettings(): LocalProviderSettings {
   if (typeof window === "undefined") {
-    return {
-      openAiApiKey: "",
-      transcriptionModel: "",
-      reportModel: ""
-    };
+    return defaultSettings;
   }
 
   const raw = window.localStorage.getItem(LOCAL_SETTINGS_KEY);
 
   if (!raw) {
-    return {
-      openAiApiKey: "",
-      transcriptionModel: "",
-      reportModel: ""
-    };
+    return defaultSettings;
   }
 
   try {
-    const parsed = JSON.parse(raw) as Partial<LocalProviderSettings>;
+    const parsed = JSON.parse(raw) as Partial<LocalProviderSettings> & {
+      openAiApiKey?: string;
+    };
     return {
-      openAiApiKey: parsed.openAiApiKey?.trim() || "",
+      provider: parsed.provider === "gemini" ? "gemini" : "openai",
+      apiKey: parsed.apiKey?.trim() || parsed.openAiApiKey?.trim() || "",
       transcriptionModel: parsed.transcriptionModel?.trim() || "",
       reportModel: parsed.reportModel?.trim() || ""
     };
   } catch {
-    return {
-      openAiApiKey: "",
-      transcriptionModel: "",
-      reportModel: ""
-    };
+    return defaultSettings;
   }
 }
 

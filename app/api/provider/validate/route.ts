@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { providerValidationSchema } from "@/lib/report-schema";
-import { validateOpenAiSettings } from "@/lib/openai";
+import { validateProviderSettings } from "@/lib/ai-provider";
 import { AppError, toErrorMessage } from "@/lib/errors";
 import { jsonResponse } from "@/lib/utils";
 
@@ -12,7 +12,7 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   try {
     const payload = providerValidationSchema.parse(await request.json());
-    await validateOpenAiSettings(payload);
+    await validateProviderSettings(payload);
     return jsonResponse({
       ok: true,
       message: "API Key 與模型驗證成功。"

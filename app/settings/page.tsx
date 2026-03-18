@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default function SettingsPage() {
   return (
-    <AppShell title="模型設定" subtitle="本機保存，不寫入系統資料。">
+    <AppShell title="模型設定" subtitle="切換平台與模型">
       <SettingsForm />
     </AppShell>
   );

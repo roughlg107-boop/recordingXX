@@ -91,7 +91,7 @@ npm install
 
 ```env
 FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_STORAGE_BUCKET=your-project-id.firebasestorage.app
+FIREBASE_STORAGE_BUCKET=your-project-id-recordingxx-audio
 FIREBASE_DATABASE_ID=(default)
 APP_BASE_URL=http://localhost:3000
 UPLOAD_MAX_BYTES=104857600
@@ -131,7 +131,8 @@ npm run dev
 
 - 啟用 Cloud Firestore
 - 啟用 Cloud Storage
-- 將 `FIREBASE_STORAGE_BUCKET` 指到你的 bucket
+- 先在同專案建立一個 Cloud Storage bucket，例如 `your-project-id-recordingxx-audio`
+- 將 `FIREBASE_STORAGE_BUCKET` 指到這個 bucket 名稱
 
 ### 3. 設定 Firestore TTL
 
