@@ -5,12 +5,12 @@ runConfig:
 
 env:
   - variable: FIREBASE_PROJECT_ID
-    value: recordingXX
+    value: recording-6ea14
   - variable: FIREBASE_STORAGE_BUCKET
-    value: recordingXX.firebasestorage.app
+    value: recording-6ea14.firebasestorage.app
   - variable: FIREBASE_DATABASE_ID
     value: (default)
   - variable: APP_BASE_URL
     value: https://REPLACE_AFTER_BACKEND_CREATE
   - variable: RATE_LIMIT_SALT
-    value: w5zfGN5oDDcEQDG4monRPDLMwrIGwuxjSEJCQdD1LI
+    value: dNONHabEHCH4SiBLOgy8aHF8er8n5KYcZewMUxm3Tg

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useState } from "react";
 import { ArrowRight, AudioLines, Settings2 } from "lucide-react";
@@ -103,7 +102,7 @@ export function UploadExperience() {
 
       setSubmitState({ tone: "success", message: "錄音已排入處理，正在前往報告頁。" });
       startTransition(() => {
-        router.push(reportPayload.redirectUrl as Route);
+        router.push(reportPayload.redirectUrl!);
       });
     } catch (error) {
       setSubmitState({
