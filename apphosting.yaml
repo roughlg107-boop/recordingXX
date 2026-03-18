@@ -14,3 +14,7 @@ env:
     value: https://recordingxx--recording-6ea14.asia-east1.hosted.app/
   - variable: RATE_LIMIT_SALT
     value: dNONHabEHCH4SiBLOgy8aHF8er8n5KYcZewMUxm3Tg
+  - variable: PROCESSING_LEASE_MS
+    value: "600000"
+  - variable: PROCESSING_HEARTBEAT_MS
+    value: "60000"

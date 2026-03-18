@@ -1,13 +1,17 @@
-import { after } from "next/server";
+import { randomUUID } from "crypto";
+
 import { NextRequest } from "next/server";
+import { Readable } from "stream";
 
 import { getServerEnv } from "@/lib/env";
 import { AppError, toErrorMessage } from "@/lib/errors";
-import { processReportJob, queueReportJob } from "@/lib/report-processing";
+import { queueReportJob } from "@/lib/report-processing";
 import { reportSubmissionSchema } from "@/lib/report-schema";
 import { acquireActiveJobSlot, releaseActiveJobSlot } from "@/lib/rate-limit";
+import { requireClientSession } from "@/lib/session";
 import { verifyUploadToken } from "@/lib/token";
-import { assertSupportedAudio, createIpHash, getClientIp, jsonResponse } from "@/lib/utils";
+import { consumeUploadSession } from "@/lib/upload-sessions";
+import { assertSupportedAudio, jsonResponse } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +19,9 @@ export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   let activeSlotAcquired = false;
-  let queuedReportId = "";
-  let ipHash = "";
+  let reportId = "";
+  let sessionHash = "";
+  let queuedSuccessfully = false;
 
   try {
     const formData = await request.formData();
@@ -37,16 +42,21 @@ export async function POST(request: NextRequest) {
     });
 
     const env = getServerEnv();
-    ipHash = createIpHash(getClientIp(request.headers), env.rateLimitSalt);
+    const session = requireClientSession(request, env.rateLimitSalt);
+    sessionHash = session.sessionHash;
     const tokenPayload = verifyUploadToken(fields.uploadToken, env.rateLimitSalt);
 
-    if (tokenPayload.ipHash !== ipHash) {
-      throw new AppError("上傳工作不屬於目前的使用者。", 403, "upload_token_ip_mismatch");
+    if (tokenPayload.sessionHash !== sessionHash) {
+      throw new AppError("上傳工作不屬於目前的瀏覽器工作階段。", 403, "upload_token_session_mismatch");
     }
 
-    if (file.size !== tokenPayload.fileSize || file.name !== tokenPayload.fileName) {
-      throw new AppError("錄音檔與初始化資訊不一致，請重新上傳。", 400, "upload_mismatch");
-    }
+    await consumeUploadSession({
+      uploadSessionId: tokenPayload.uploadSessionId,
+      sessionHash,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type
+    });
 
     if (file.size > env.uploadMaxBytes) {
       throw new AppError("錄音檔超過目前上限，請先壓縮或分段後再上傳。", 400, "file_too_large");
@@ -54,39 +64,24 @@ export async function POST(request: NextRequest) {
 
     assertSupportedAudio(file.name, file.type);
 
-    await acquireActiveJobSlot(ipHash, env.rateLimitMaxActiveJobs);
+    reportId = randomUUID();
+    await acquireActiveJobSlot(sessionHash, reportId, env.rateLimitMaxActiveJobs, env.processingLeaseMs);
     activeSlotAcquired = true;
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const { reportId, objectPath } = await queueReportJob({
-      ipHash,
+    await queueReportJob({
+      reportId,
+      sessionHash,
       shopName: fields.shopName,
       salesName: fields.salesName,
       visitDate: fields.visitDate,
       fileName: file.name,
       mimeType: file.type,
-      buffer,
-      openAiApiKey: fields.openAiApiKey,
-      transcriptionModel: fields.transcriptionModel,
-      reportModel: fields.reportModel
+      fileSize: file.size,
+      stream: Readable.fromWeb(
+        file.stream() as unknown as import("stream/web").ReadableStream<ArrayBufferView>
+      )
     });
-    queuedReportId = reportId;
-
-    after(async () => {
-      await processReportJob({
-        reportId,
-        objectPath,
-        ipHash,
-        shopName: fields.shopName,
-        salesName: fields.salesName,
-        visitDate: fields.visitDate,
-        fileName: file.name,
-        mimeType: file.type,
-        openAiApiKey: fields.openAiApiKey,
-        transcriptionModel: fields.transcriptionModel,
-        reportModel: fields.reportModel
-      });
-    });
+    queuedSuccessfully = true;
 
     return jsonResponse(
       {
@@ -110,8 +105,8 @@ export async function POST(request: NextRequest) {
       appError.statusCode
     );
   } finally {
-    if (activeSlotAcquired && !queuedReportId) {
-      await releaseActiveJobSlot(ipHash);
+    if (activeSlotAcquired && reportId && sessionHash && !queuedSuccessfully) {
+      await releaseActiveJobSlot(sessionHash, reportId);
     }
   }
 }

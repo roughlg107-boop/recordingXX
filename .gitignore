@@ -7,3 +7,4 @@ node_modules
 firebase-debug.log
 .firebase-config
 tsconfig.tsbuildinfo
+tsconfig.typecheck.tsbuildinfo

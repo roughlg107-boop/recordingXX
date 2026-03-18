@@ -19,7 +19,7 @@ export default async function ReportPage({
   }
 
   return (
-    <AppShell title="報告詳情" subtitle="單筆報告只保留一天，可下載 Word。">
+    <AppShell title="報告詳情" subtitle="單筆結果頁與 Word 匯出。">
       <ReportView initialReport={report} />
     </AppShell>
   );

@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "app/api/**/*.ts",
+    "app/layout.tsx",
+    "app/not-found.tsx",
+    "app/page.tsx",
+    "app/r/**/*.tsx",
+    "app/settings/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "next-env.d.ts"
+  ],
+  "exclude": [
+    ".next",
+    "node_modules",
+    "functions",
+    "app/src"
+  ]
+}

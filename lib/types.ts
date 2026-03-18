@@ -9,13 +9,12 @@ export type VisitReportRecord = VisitReportGeneration & {
   createdAt: string;
   updatedAt: string;
   expiresAt: string;
+  processingLeaseExpiresAt?: string;
   errorMessage?: string;
 };
 
 export type UploadTokenPayload = {
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
-  ipHash: string;
+  uploadSessionId: string;
+  sessionHash: string;
   expiresAt: number;
 };

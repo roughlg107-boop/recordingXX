@@ -5,14 +5,14 @@ import { getDb } from "@/lib/firebase-admin";
 import { AppError } from "@/lib/errors";
 
 export async function consumeRateLimit(
-  ipHash: string,
+  sessionHash: string,
   limit: number,
   windowMs: number
 ) {
   const db = getDb();
   const now = Date.now();
   const bucketStart = Math.floor(now / windowMs) * windowMs;
-  const bucketId = `${ipHash}:${bucketStart}`;
+  const bucketId = `${sessionHash}:${bucketStart}`;
   const ref = db.collection(RATE_LIMIT_COLLECTION).doc(bucketId);
 
   await db.runTransaction(async (transaction) => {
@@ -27,7 +27,7 @@ export async function consumeRateLimit(
       ref,
       {
         count: count + 1,
-        ipHash,
+        sessionHash,
         bucketStart: Timestamp.fromMillis(bucketStart),
         expiresAt: Timestamp.fromMillis(bucketStart + windowMs * 2),
         updatedAt: FieldValue.serverTimestamp()
@@ -37,33 +37,70 @@ export async function consumeRateLimit(
   });
 }
 
-export async function acquireActiveJobSlot(ipHash: string, maxJobs: number) {
+export async function acquireActiveJobSlot(
+  sessionHash: string,
+  reportId: string,
+  maxJobs: number,
+  leaseMs: number
+) {
   const db = getDb();
-  const ref = db.collection(ACTIVE_JOBS_COLLECTION).doc(ipHash);
+  const ref = db.collection(ACTIVE_JOBS_COLLECTION).doc(sessionHash);
+  const now = Date.now();
 
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
-    const activeJobs = snapshot.exists ? Number(snapshot.data()?.activeJobs || 0) : 0;
+    const rawJobs = snapshot.exists ? (snapshot.data()?.jobs as Record<string, Timestamp> | undefined) : undefined;
+    const prunedJobs = Object.fromEntries(
+      Object.entries(rawJobs || {}).filter(([, value]) => value.toDate().getTime() > now)
+    );
 
-    if (activeJobs >= maxJobs) {
+    if (Object.keys(prunedJobs).length >= maxJobs) {
       throw new AppError("目前同一裝置已有處理中的錄音，請等待完成後再提交。", 429, "too_many_jobs");
     }
+
+    prunedJobs[reportId] = Timestamp.fromMillis(now + leaseMs);
 
     transaction.set(
       ref,
       {
-        activeJobs: activeJobs + 1,
+        jobs: prunedJobs,
         updatedAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromMillis(Date.now() + 48 * 60 * 60 * 1000)
+        expiresAt: Timestamp.fromMillis(now + leaseMs)
       },
       { merge: true }
     );
   });
 }
 
-export async function releaseActiveJobSlot(ipHash: string) {
+export async function heartbeatActiveJobSlot(sessionHash: string, reportId: string, leaseMs: number) {
   const db = getDb();
-  const ref = db.collection(ACTIVE_JOBS_COLLECTION).doc(ipHash);
+  const ref = db.collection(ACTIVE_JOBS_COLLECTION).doc(sessionHash);
+  const now = Date.now();
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const rawJobs = snapshot.exists ? ((snapshot.data()?.jobs as Record<string, Timestamp> | undefined) || {}) : {};
+    const nextJobs = Object.fromEntries(
+      Object.entries(rawJobs).filter(([, value]) => value.toDate().getTime() > now)
+    );
+
+    nextJobs[reportId] = Timestamp.fromMillis(now + leaseMs);
+    transaction.set(
+      ref,
+      {
+        jobs: nextJobs,
+        updatedAt: FieldValue.serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(now + leaseMs)
+      },
+      { merge: true }
+    );
+  });
+}
+
+export async function releaseActiveJobSlot(sessionHash: string, reportId: string) {
+  const db = getDb();
+  const ref = db.collection(ACTIVE_JOBS_COLLECTION).doc(sessionHash);
+  const now = Date.now();
 
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -71,13 +108,23 @@ export async function releaseActiveJobSlot(ipHash: string) {
       return;
     }
 
-    const activeJobs = Math.max(0, Number(snapshot.data()?.activeJobs || 0) - 1);
+    const rawJobs = (snapshot.data()?.jobs as Record<string, Timestamp> | undefined) || {};
+    const nextJobs = Object.fromEntries(
+      Object.entries(rawJobs).filter(
+        ([key, value]) => key !== reportId && value.toDate().getTime() > now
+      )
+    );
+
     transaction.set(
       ref,
       {
-        activeJobs,
+        jobs: nextJobs,
         updatedAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromMillis(Date.now() + 48 * 60 * 60 * 1000)
+        expiresAt: Timestamp.fromMillis(
+          Object.values(nextJobs).length
+            ? Math.max(...Object.values(nextJobs).map((value) => value.toDate().getTime()))
+            : now + 5 * 60 * 1000
+        )
       },
       { merge: true }
     );

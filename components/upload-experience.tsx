@@ -25,7 +25,7 @@ export function UploadExperience() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitState, setSubmitState] = useState<SubmitState>({
     tone: "idle",
-    message: "錄音處理完成後，報告會保留約 24 小時，之後自動失效。"
+    message: "報告建立後僅保留約 24 小時。"
   });
 
   useEffect(() => {
@@ -44,12 +44,12 @@ export function UploadExperience() {
     const settings = readLocalProviderSettings();
 
     if (!settings.openAiApiKey || !settings.transcriptionModel || !settings.reportModel) {
-      setSubmitState({ tone: "danger", message: "請先到 AI 設定頁填入 API Key 與模型。" });
+      setSubmitState({ tone: "danger", message: "請先完成模型設定。" });
       return;
     }
 
     setIsSubmitting(true);
-    setSubmitState({ tone: "idle", message: "正在建立上傳工作與排入處理..." });
+    setSubmitState({ tone: "idle", message: "正在建立報告..." });
 
     try {
       const initResponse = await fetch("/api/uploads/init", {
@@ -92,6 +92,7 @@ export function UploadExperience() {
       });
 
       const reportPayload = (await reportResponse.json()) as {
+        reportId?: string;
         redirectUrl?: string;
         message?: string;
       };
@@ -100,7 +101,17 @@ export function UploadExperience() {
         throw new Error(reportPayload.message || "提交錄音失敗。");
       }
 
-      setSubmitState({ tone: "success", message: "錄音已排入處理，正在前往報告頁。" });
+      if (reportPayload.reportId) {
+        await fetch(`/api/reports/${reportPayload.reportId}/process`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(settings)
+        }).catch(() => undefined);
+      }
+
+      setSubmitState({ tone: "success", message: "已送件，正在開啟報告頁。" });
       startTransition(() => {
         router.push(reportPayload.redirectUrl!);
       });
@@ -120,31 +131,35 @@ export function UploadExperience() {
         <div className="panel-content">
           <div className="eyebrow">
             <AudioLines size={14} />
-            Sales Recording to Brief
+            錄音送件
           </div>
-          <h2 className="display-title">把拜訪錄音，直接轉成企劃可接手的提案前置報告。</h2>
-          <p className="lead">
-            這個版本專注在最短流程。業務填 3 個欄位、丟入錄音，系統會整理成摘要、拜訪脈絡、行銷現況、需求痛點、目標與未確認資訊。
-          </p>
+          <h2 className="display-title">上傳錄音，快速產出可交付的拜訪摘要。</h2>
+          <p className="lead">輸入店家、業務與日期後，系統會整理出摘要、拜訪脈絡、現況判讀與合作重點。</p>
+
+          <ul className="hero-points">
+            <li>適合提案前快速整理客戶需求，不需要重聽全段錄音。</li>
+            <li>AI 金鑰只保存在目前裝置，不寫入資料庫。</li>
+            <li>報告保留一天，完成後可下載 Word。</li>
+          </ul>
 
           <div className="stats">
             <div className="stat">
               <strong>24h</strong>
-              <span>報告留存一天</span>
+              <span>結果自動清除</span>
             </div>
             <div className="stat">
               <strong>3 欄位</strong>
-              <span>最少輸入資訊</span>
+              <span>快速送件</span>
             </div>
             <div className="stat">
               <strong>Word</strong>
-              <span>完成後可下載</span>
+              <span>支援匯出</span>
             </div>
           </div>
 
           <div className="notice" style={{ marginTop: 22 }}>
-            <strong>使用前確認：</strong>
-            API Key 與模型只存在你目前這台裝置的瀏覽器，不會被存入網站資料庫。
+            <strong>本機設定：</strong>
+            OpenAI API Key 與模型只會存在目前瀏覽器。
           </div>
         </div>
       </section>
@@ -153,18 +168,18 @@ export function UploadExperience() {
         <div className="panel-content">
           <div className="split-header">
             <div>
-              <div className="eyebrow">Upload Intake</div>
-              <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: "1.8rem" }}>建立新報告</h3>
+              <div className="eyebrow">建立報告</div>
+              <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: "1.8rem" }}>建立拜訪報告</h3>
             </div>
             <Link className="secondary-button" href="/settings">
               <Settings2 size={16} style={{ verticalAlign: "text-bottom", marginRight: 8 }} />
-              AI 設定
+              模型設定
             </Link>
           </div>
 
           {!hasSettings && (
             <div className="notice" data-tone="danger" style={{ marginBottom: 18 }}>
-              尚未在本機設定 OpenAI API Key 與模型。先到「AI 設定」頁完成設定，再回來上傳錄音。
+              尚未完成本機模型設定。請先到「模型設定」頁填入 API Key 與模型。
             </div>
           )}
 
@@ -202,7 +217,7 @@ export function UploadExperience() {
                 onChange={(event) => setVisitDate(event.target.value)}
                 required
               />
-              <div className="helper">報告會以 {formatVisitDate(visitDate)} 作為拜訪日期顯示。</div>
+              <div className="helper">報告將以 {formatVisitDate(visitDate)} 顯示拜訪日期。</div>
             </div>
 
             <div className="file-field">
@@ -215,12 +230,10 @@ export function UploadExperience() {
                   onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
                   required
                 />
-                <div className="helper">
-                  支援 m4a / mp3 / wav。建議單檔控制在 90 分鐘內，處理完成後原始錄音會刪除。
-                </div>
+                <div className="helper">支援 m4a / mp3 / wav。建議控制在 90 分鐘內，原始音檔完成後會刪除。</div>
                 {audioFile && (
                   <div className="notice">
-                    已選擇：<strong>{audioFile.name}</strong>，約 {(audioFile.size / 1024 / 1024).toFixed(1)} MB
+                    已選擇：<strong>{audioFile.name}</strong>，{(audioFile.size / 1024 / 1024).toFixed(1)} MB
                   </div>
                 )}
               </div>
@@ -235,10 +248,10 @@ export function UploadExperience() {
 
             <div className="footer-actions">
               <button className="button" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "提交中..." : "開始整理報告"}
+                {isSubmitting ? "送件中..." : "建立報告"}
               </button>
               <Link className="secondary-button" href="/settings">
-                先檢查 AI 設定
+                前往模型設定
                 <ArrowRight size={16} style={{ verticalAlign: "text-bottom", marginLeft: 8 }} />
               </Link>
             </div>

@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { NextResponse } from "next/server";
 
 import { ALLOWED_AUDIO_EXTENSIONS, ALLOWED_AUDIO_MIME_TYPES } from "@/lib/constants";
 import { AppError } from "@/lib/errors";
@@ -45,5 +46,5 @@ export function safeFileName(value: string) {
 }
 
 export function jsonResponse(body: unknown, status = 200) {
-  return Response.json(body, { status });
+  return NextResponse.json(body, { status });
 }

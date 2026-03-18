@@ -1,87 +1,116 @@
-import { randomUUID } from "crypto";
+import { Readable } from "stream";
 
-import { completeReport, createQueuedReport, failReport, markReportProcessing } from "@/lib/firestore-reports";
-import { deleteTemporaryAudio, downloadTemporaryAudio, uploadTemporaryAudio } from "@/lib/storage";
+import {
+  attachReportAudio,
+  completeReport,
+  createQueuedReport,
+  failReport,
+  heartbeatReportProcessing,
+  type ReportProcessingClaim
+} from "@/lib/firestore-reports";
+import {
+  deleteLocalTemporaryFile,
+  deleteTemporaryAudio,
+  downloadTemporaryAudioToTempFile,
+  uploadTemporaryAudioStream
+} from "@/lib/storage";
 import { generateVisitReport, transcribeAudio } from "@/lib/openai";
-import { releaseActiveJobSlot } from "@/lib/rate-limit";
+import { heartbeatActiveJobSlot, releaseActiveJobSlot } from "@/lib/rate-limit";
 import { toErrorMessage } from "@/lib/errors";
 
 type QueueInput = {
-  ipHash: string;
+  reportId: string;
+  sessionHash: string;
   shopName: string;
   salesName: string;
   visitDate: string;
   fileName: string;
   mimeType: string;
-  buffer: Buffer;
-  openAiApiKey: string;
-  transcriptionModel: string;
-  reportModel: string;
+  fileSize: number;
+  stream: Readable;
 };
 
 export async function queueReportJob(input: QueueInput) {
-  const reportId = randomUUID();
   let reportCreated = false;
 
   try {
     await createQueuedReport({
-      id: reportId,
-      ipHash: input.ipHash,
+      id: input.reportId,
+      sessionHash: input.sessionHash,
       shopName: input.shopName,
       salesName: input.salesName,
-      visitDate: input.visitDate
+      visitDate: input.visitDate,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      fileSize: input.fileSize
     });
     reportCreated = true;
 
-    const objectPath = await uploadTemporaryAudio(reportId, input.fileName, input.mimeType, input.buffer);
+    const objectPath = await uploadTemporaryAudioStream(
+      input.reportId,
+      input.fileName,
+      input.mimeType,
+      input.stream
+    );
+    await attachReportAudio(input.reportId, objectPath);
 
-    return { reportId, objectPath };
+    return { reportId: input.reportId, objectPath };
   } catch (error) {
     if (reportCreated) {
-      await failReport(reportId, toErrorMessage(error));
+      await failReport(input.reportId, toErrorMessage(error));
     }
     throw error;
   }
 }
 
 export async function processReportJob(input: {
-  reportId: string;
-  objectPath: string;
-  ipHash: string;
-  shopName: string;
-  salesName: string;
-  visitDate: string;
-  fileName: string;
-  mimeType: string;
+  claim: ReportProcessingClaim;
   openAiApiKey: string;
   transcriptionModel: string;
   reportModel: string;
+  processingLeaseMs: number;
+  processingHeartbeatMs: number;
 }) {
+  let tempFilePath = "";
+  const heartbeatTimer = setInterval(() => {
+    void heartbeatReportProcessing(input.claim.reportId, input.processingLeaseMs);
+    void heartbeatActiveJobSlot(input.claim.sessionHash, input.claim.reportId, input.processingLeaseMs);
+  }, input.processingHeartbeatMs);
+
+  heartbeatTimer.unref?.();
+
   try {
-    await markReportProcessing(input.reportId);
-    const buffer = await downloadTemporaryAudio(input.objectPath);
+    await heartbeatReportProcessing(input.claim.reportId, input.processingLeaseMs);
+    await heartbeatActiveJobSlot(input.claim.sessionHash, input.claim.reportId, input.processingLeaseMs);
+
+    tempFilePath = await downloadTemporaryAudioToTempFile(input.claim.objectPath, input.claim.fileName);
     const transcript = await transcribeAudio({
       apiKey: input.openAiApiKey,
       model: input.transcriptionModel,
-      fileName: input.fileName,
-      mimeType: input.mimeType,
-      buffer
+      filePath: tempFilePath
     });
+
+    await heartbeatReportProcessing(input.claim.reportId, input.processingLeaseMs);
+    await heartbeatActiveJobSlot(input.claim.sessionHash, input.claim.reportId, input.processingLeaseMs);
 
     const report = await generateVisitReport({
       apiKey: input.openAiApiKey,
       model: input.reportModel,
-      shopName: input.shopName,
-      salesName: input.salesName,
-      visitDate: input.visitDate,
+      shopName: input.claim.shopName,
+      salesName: input.claim.salesName,
+      visitDate: input.claim.visitDate,
       transcript
     });
 
-    await completeReport(input.reportId, report);
+    await completeReport(input.claim.reportId, report);
   } catch (error) {
-    await failReport(input.reportId, toErrorMessage(error));
+    await failReport(input.claim.reportId, toErrorMessage(error));
   } finally {
-    await deleteTemporaryAudio(input.objectPath);
-    await releaseActiveJobSlot(input.ipHash);
+    clearInterval(heartbeatTimer);
+    if (tempFilePath) {
+      await deleteLocalTemporaryFile(tempFilePath).catch(() => undefined);
+    }
+    await deleteTemporaryAudio(input.claim.objectPath);
+    await releaseActiveJobSlot(input.claim.sessionHash, input.claim.reportId);
   }
 }

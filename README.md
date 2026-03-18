@@ -99,6 +99,8 @@ UPLOAD_MAX_MINUTES=90
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=10
 RATE_LIMIT_MAX_ACTIVE_JOBS=2
+PROCESSING_LEASE_MS=600000
+PROCESSING_HEARTBEAT_MS=60000
 RATE_LIMIT_SALT=replace-this-with-a-random-secret
 ```
 
@@ -138,6 +140,7 @@ npm run dev
 - `visitReports`
 - `rateLimitBuckets`
 - `activeJobCounters`
+- `uploadSessions`
 
 注意：Firestore TTL 是到期後通常 24 小時內刪除，不是精準秒刪。應用程式本身也會在讀取時檢查是否已過期，所以過期連結會直接視為不存在。
 
@@ -149,6 +152,8 @@ npm run dev
 - `FIREBASE_STORAGE_BUCKET`
 - `FIREBASE_DATABASE_ID`
 - `APP_BASE_URL`
+- `PROCESSING_LEASE_MS`
+- `PROCESSING_HEARTBEAT_MS`
 - `RATE_LIMIT_SALT`
 
 ## 使用流程
@@ -172,12 +177,14 @@ npm run dev
 - `POST /api/provider/validate`
 - `POST /api/uploads/init`
 - `POST /api/reports`
+- `POST /api/reports/:reportId/process`
 - `GET /api/reports/:reportId/status`
 - `GET /api/reports/:reportId/docx`
 
 ## 注意事項
 
 - OpenAI API Key 不會被存到 Firestore 或 Storage
+- 系統會發一個 HttpOnly session cookie，拿來驗證匿名工作階段與一次性 upload session
 - 系統不做登入，因此只適合內部試行
-- 目前的上傳流程會先由 Next.js 接收檔案，再寫入 Cloud Storage；適合小團隊 MVP，不適合大量高頻長音檔
+- 目前的上傳流程會先由 Next.js 接收檔案，再串流寫入 Cloud Storage；適合小團隊 MVP，不適合大量高頻長音檔
 - App Hosting backend 建立時，GitHub repo 連結與某些 Firebase 資源授權仍可能要你手動確認

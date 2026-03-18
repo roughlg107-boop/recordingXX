@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default function HomePage() {
   return (
-    <AppShell title="RecordingXX" subtitle="Sales visit recorder to proposal-ready brief.">
+    <AppShell title="RecordingXX" subtitle="拜訪錄音轉提案摘要">
       <UploadExperience />
     </AppShell>
   );

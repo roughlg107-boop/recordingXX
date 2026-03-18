@@ -43,5 +43,9 @@ export function verifyUploadToken(token: string, secret: string) {
     throw new AppError("上傳工作已過期，請重新初始化。", 400, "expired_upload_token");
   }
 
+  if (!payload.uploadSessionId || !payload.sessionHash) {
+    throw new AppError("上傳工作已失效，請重新選擇錄音檔。", 400, "invalid_upload_token");
+  }
+
   return payload;
 }
