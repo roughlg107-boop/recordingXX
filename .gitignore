@@ -1,0 +1,17 @@
+node_modules
+dist
+.firebase
+.firebaserc
+.env
+.env.local
+.env.production
+.tmp-config
+.tmp-home
+functions/lib
+functions/.runtimeconfig.json
+app/.env
+app/.env.local
+app/.env.production
+coverage
+*.log
+

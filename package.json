@@ -1,0 +1,19 @@
+{
+  "name": "firebase-visit-report-system",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "app",
+    "functions"
+  ],
+  "scripts": {
+    "build": "npm run build -w app && npm run build -w functions",
+    "typecheck": "npm run typecheck -w app && npm run typecheck -w functions",
+    "dev": "npm run dev -w app",
+    "emulators": "firebase emulators:start",
+    "deploy": "firebase deploy"
+  },
+  "dependencies": {
+    "firebase": "^12.10.0"
+  }
+}
