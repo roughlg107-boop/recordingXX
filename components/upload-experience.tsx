@@ -7,20 +7,18 @@ import { ArrowRight, AudioLines, CheckCircle2, Settings2, ShieldCheck } from "lu
 
 import { getProviderLabel } from "@/lib/ai-providers";
 import { readLocalProviderSettings } from "@/lib/client-settings";
-import { formatVisitDate } from "@/lib/formatters";
+import { formatVisitDate, getTodayInTaipei } from "@/lib/formatters";
 
 type SubmitState =
   | { tone: "idle"; message: string }
   | { tone: "danger"; message: string }
   | { tone: "success"; message: string };
 
-const today = new Date().toISOString().slice(0, 10);
-
 export function UploadExperience() {
   const router = useRouter();
   const [shopName, setShopName] = useState("");
   const [salesName, setSalesName] = useState("");
-  const [visitDate, setVisitDate] = useState(today);
+  const [visitDate, setVisitDate] = useState(() => getTodayInTaipei());
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [settingsReady, setSettingsReady] = useState(false);
   const [providerLabel, setProviderLabel] = useState("OpenAI");

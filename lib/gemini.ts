@@ -6,6 +6,9 @@ import { GoogleGenAI, createPartFromBase64, createPartFromUri } from "@google/ge
 
 import { AppError } from "@/lib/errors";
 import { visitReportGenerationSchema } from "@/lib/report-schema";
+import { resolveAudioMimeType } from "@/lib/utils";
+
+const GEMINI_TRANSCRIPTION_FALLBACK_MODEL = "gemini-2.5-flash";
 
 function getClient(apiKey: string) {
   return new GoogleGenAI({ apiKey });
@@ -123,6 +126,39 @@ async function waitForUploadedFileActive(
   throw new AppError("Gemini 音檔處理逾時，請稍後再試。", 504, "gemini_file_processing_timeout");
 }
 
+async function requestTranscript(
+  ai: GoogleGenAI,
+  model: string,
+  fileUri: string,
+  mimeType: string
+) {
+  const response = await ai.models.generateContent({
+    model,
+    config: {
+      temperature: 0,
+      maxOutputTokens: 8192
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: [
+              "請將這段音檔忠實逐字轉寫為繁體中文。",
+              "保留人名、店名、數字、時間與品牌名。",
+              "若夾雜台語或口語，請依聽到的內容照實寫出。",
+              "若完全沒有可辨識語音，請只輸出 [NO_SPEECH]。"
+            ].join("\n")
+          },
+          createPartFromUri(fileUri, mimeType)
+        ]
+      }
+    ]
+  });
+
+  return response.text?.trim() || "";
+}
+
 export async function validateGeminiSettings(input: {
   apiKey: string;
   transcriptionModel: string;
@@ -160,15 +196,17 @@ export async function transcribeAudioWithGemini(input: {
   model: string;
   filePath: string;
   mimeType: string;
+  fileName?: string;
 }) {
   const ai = getClient(input.apiKey);
   let uploadedFileName = "";
 
   try {
+    const resolvedMimeType = resolveAudioMimeType(input.fileName || input.filePath, input.mimeType);
     const uploadedFile = await ai.files.upload({
       file: input.filePath,
       config: {
-        mimeType: input.mimeType || "application/octet-stream"
+        mimeType: resolvedMimeType
       }
     });
 
@@ -177,26 +215,23 @@ export async function transcribeAudioWithGemini(input: {
       ? await waitForUploadedFileActive(ai, uploadedFileName)
       : uploadedFile;
 
-    const response = await ai.models.generateContent({
-      model: input.model,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: "請忠實逐字轉寫這段台灣中文商務拜訪錄音。不要總結，不要刪減，也不要補造任何內容。"
-            },
-            createPartFromUri(
-              activeFile.uri || "",
-              activeFile.mimeType || input.mimeType || "application/octet-stream"
-            )
-          ]
-        }
-      ]
-    });
+    const fileUri = activeFile.uri || "";
+    const fileMimeType = resolveAudioMimeType(
+      input.fileName || input.filePath,
+      activeFile.mimeType || resolvedMimeType
+    );
 
-    const transcript = response.text?.trim() || "";
-    if (!transcript) {
+    if (!fileUri) {
+      throw new AppError("Gemini 上傳音檔失敗，未取得可處理的檔案 URI。", 502, "gemini_file_uri_missing");
+    }
+
+    let transcript = await requestTranscript(ai, input.model, fileUri, fileMimeType);
+
+    if ((!transcript || transcript === "[NO_SPEECH]") && input.model !== GEMINI_TRANSCRIPTION_FALLBACK_MODEL) {
+      transcript = await requestTranscript(ai, GEMINI_TRANSCRIPTION_FALLBACK_MODEL, fileUri, fileMimeType);
+    }
+
+    if (!transcript || transcript === "[NO_SPEECH]") {
       throw new AppError("Gemini 沒有產出逐字稿，請改用較清楚的錄音檔重試。", 422, "empty_transcript");
     }
 

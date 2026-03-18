@@ -95,7 +95,8 @@ export async function processReportJob(input: {
       apiKey: input.apiKey,
       model: input.transcriptionModel,
       filePath: tempFilePath,
-      mimeType: input.claim.mimeType
+      mimeType: input.claim.mimeType,
+      fileName: input.claim.fileName
     });
 
     await heartbeatReportProcessing(input.claim.reportId, input.processingLeaseMs);

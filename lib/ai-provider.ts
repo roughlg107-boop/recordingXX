@@ -21,6 +21,7 @@ export async function transcribeAudioWithProvider(input: {
   model: string;
   filePath: string;
   mimeType: string;
+  fileName?: string;
 }) {
   if (input.provider === "gemini") {
     return transcribeAudioWithGemini(input);

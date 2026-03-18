@@ -28,6 +28,28 @@ export function assertSupportedAudio(fileName: string, mimeType?: string) {
   }
 }
 
+export function resolveAudioMimeType(fileName: string, mimeType?: string) {
+  const normalized = mimeType?.toLowerCase().trim();
+  if (normalized) {
+    return normalized;
+  }
+
+  const extension = getFileExtension(fileName);
+  if (extension === ".mp3") {
+    return "audio/mpeg";
+  }
+
+  if (extension === ".wav") {
+    return "audio/wav";
+  }
+
+  if (extension === ".m4a") {
+    return "audio/mp4";
+  }
+
+  return "application/octet-stream";
+}
+
 export function createIpHash(ip: string, salt: string) {
   return createHash("sha256").update(`${salt}:${ip}`).digest("hex");
 }

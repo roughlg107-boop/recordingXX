@@ -70,14 +70,14 @@ export const modelCatalog: Record<AiProvider, ProviderModelCatalog> = {
     providerLabel: "Gemini",
     transcription: [
       {
-        value: "gemini-2.5-flash-lite",
-        label: "gemini-2.5-flash-lite",
-        note: "推薦｜速度快、成本低"
-      },
-      {
         value: "gemini-2.5-flash",
         label: "gemini-2.5-flash",
-        note: "品質優先｜效果佳"
+        note: "推薦｜辨識較穩"
+      },
+      {
+        value: "gemini-2.5-flash-lite",
+        label: "gemini-2.5-flash-lite",
+        note: "速度快｜成本低"
       }
     ],
     report: [
@@ -98,7 +98,7 @@ export const modelCatalog: Record<AiProvider, ProviderModelCatalog> = {
       }
     ],
     recommendedPair: {
-      transcriptionModel: "gemini-2.5-flash-lite",
+      transcriptionModel: "gemini-2.5-flash",
       reportModel: "gemini-2.5-flash",
       note: "速度與品質最平衡"
     }
