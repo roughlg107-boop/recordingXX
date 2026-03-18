@@ -1,0 +1,16 @@
+runConfig:
+  maxInstances: 3
+  minInstances: 0
+  concurrency: 10
+
+env:
+  - variable: FIREBASE_PROJECT_ID
+    value: recordingXX
+  - variable: FIREBASE_STORAGE_BUCKET
+    value: recordingXX.firebasestorage.app
+  - variable: FIREBASE_DATABASE_ID
+    value: (default)
+  - variable: APP_BASE_URL
+    value: https://REPLACE_AFTER_BACKEND_CREATE
+  - variable: RATE_LIMIT_SALT
+    value: w5zfGN5oDDcEQDG4monRPDLMwrIGwuxjSEJCQdD1LI
