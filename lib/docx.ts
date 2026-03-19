@@ -1,7 +1,7 @@
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 
 import type { VisitReportRecord } from "@/lib/types";
-import { formatDisplayDate, formatVisitDate } from "@/lib/formatters";
+import { formatDisplayDate, formatReportActivityAction, formatVisitDate } from "@/lib/formatters";
 
 function sectionTitle(title: string) {
   return new Paragraph({
@@ -30,6 +30,13 @@ function bulletList(items: string[]) {
 }
 
 export async function buildReportDocx(report: VisitReportRecord) {
+  const activityLines = report.activityLog.map(
+    (item) =>
+      `${formatDisplayDate(item.createdAt)}｜${item.actorLabel}｜${formatReportActivityAction(item.action)}${
+        item.detail ? `｜${item.detail}` : ""
+      }`
+  );
+
   const doc = new Document({
     sections: [
       {
@@ -67,6 +74,10 @@ export async function buildReportDocx(report: VisitReportRecord) {
           sectionTitle("未確認資訊"),
           ...(report.uncertaintyNotes.length
             ? bulletList(report.uncertaintyNotes)
+            : [new Paragraph({ children: [new TextRun("無。")] })]),
+          sectionTitle("操作紀錄"),
+          ...(activityLines.length
+            ? bulletList(activityLines)
             : [new Paragraph({ children: [new TextRun("無。")] })])
         ]
       }

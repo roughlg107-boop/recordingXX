@@ -4,7 +4,7 @@ import { getServerEnv } from "@/lib/env";
 import { buildReportDocx } from "@/lib/docx";
 import { AppError, toErrorMessage } from "@/lib/errors";
 import { requireAuthenticatedRequest } from "@/lib/firebase-auth";
-import { assertReportExists } from "@/lib/firestore-reports";
+import { appendReportActivity, assertReportExists } from "@/lib/firestore-reports";
 import { requireClientSession } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -28,6 +28,14 @@ export async function GET(
     if (report.status !== "completed") {
       return Response.json({ ok: false, message: "報告尚未完成，暫時無法下載。" }, { status: 409 });
     }
+
+    await appendReportActivity(reportId, {
+      action: "downloaded_docx",
+      actorUid: authUser.uid,
+      actorEmail: authUser.email || undefined,
+      actorLabel: authUser.email || authUser.uid,
+      detail: "下載 Word 報告"
+    });
 
     const fileBuffer = await buildReportDocx(report);
     const fileName = `${report.shopName}-visit-report.docx`;

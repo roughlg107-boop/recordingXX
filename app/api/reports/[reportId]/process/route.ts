@@ -3,7 +3,11 @@ import { after, NextRequest } from "next/server";
 import { getServerEnv } from "@/lib/env";
 import { AppError, toErrorMessage } from "@/lib/errors";
 import { requireAuthenticatedRequest } from "@/lib/firebase-auth";
-import { claimReportForProcessing, getReportStatus } from "@/lib/firestore-reports";
+import {
+  appendReportActivity,
+  claimReportForProcessing,
+  getReportStatus
+} from "@/lib/firestore-reports";
 import { processReportJob } from "@/lib/report-processing";
 import { providerValidationSchema } from "@/lib/report-schema";
 import { requireClientSession } from "@/lib/session";
@@ -44,6 +48,14 @@ export async function POST(
 
       return jsonResponse({ ok: true, report });
     }
+
+    await appendReportActivity(reportId, {
+      action: "processing_started",
+      actorUid: authUser.uid,
+      actorEmail: authUser.email || undefined,
+      actorLabel: authUser.email || authUser.uid,
+      detail: "啟動錄音整理"
+    });
 
     after(async () => {
       await processReportJob({

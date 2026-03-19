@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
     await queueReportJob({
       reportId,
       ownerUid: authUser.uid,
+      ownerEmail: authUser.email || undefined,
       sessionHash,
       shopName: fields.shopName,
       salesName: fields.salesName,

@@ -39,3 +39,20 @@ export function getTodayInTaipei() {
 
   return `${year}-${month}-${day}`;
 }
+
+export function formatReportActivityAction(action: string) {
+  switch (action) {
+    case "created":
+      return "建立報告";
+    case "processing_started":
+      return "啟動處理";
+    case "completed":
+      return "完成處理";
+    case "failed":
+      return "處理失敗";
+    case "downloaded_docx":
+      return "下載 Word";
+    default:
+      return action;
+  }
+}

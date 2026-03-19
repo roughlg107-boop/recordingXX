@@ -1,14 +1,17 @@
+import { randomUUID } from "crypto";
+
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { REPORT_COLLECTION, REPORT_RETENTION_HOURS } from "@/lib/constants";
 import { getDb } from "@/lib/firebase-admin";
 import { AppError } from "@/lib/errors";
 import type { VisitReportGeneration } from "@/lib/report-schema";
-import type { VisitReportRecord } from "@/lib/types";
+import type { ReportActivityRecord, VisitReportRecord } from "@/lib/types";
 
 type StoredReport = {
   status: "queued" | "processing" | "completed" | "failed";
   ownerUid?: string;
+  ownerEmail?: string;
   shopName: string;
   salesName: string;
   visitDate: string;
@@ -26,6 +29,7 @@ type StoredReport = {
   originalFileSize?: number;
   processingAttempts?: number;
   processingLeaseExpiresAt?: Timestamp;
+  activityLog?: ReportActivityRecord[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
   expiresAt: Timestamp;
@@ -54,6 +58,7 @@ function serializeReport(id: string, data: StoredReport): VisitReportRecord {
     shopName: data.shopName,
     salesName: data.salesName,
     visitDate: data.visitDate,
+    ownerEmail: data.ownerEmail,
     summary: data.summary || [],
     visitNarrative: data.visitNarrative || "",
     currentMarketingStatus: data.currentMarketingStatus || "",
@@ -64,12 +69,31 @@ function serializeReport(id: string, data: StoredReport): VisitReportRecord {
     updatedAt: data.updatedAt.toDate().toISOString(),
     expiresAt: data.expiresAt.toDate().toISOString(),
     processingLeaseExpiresAt: data.processingLeaseExpiresAt?.toDate().toISOString(),
-    errorMessage: data.errorMessage
+    errorMessage: data.errorMessage,
+    activityLog: (data.activityLog || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt))
   };
 }
 
 function getExpiryTimestamp() {
   return Timestamp.fromDate(new Date(Date.now() + REPORT_RETENTION_HOURS * 60 * 60 * 1000));
+}
+
+function createActivityRecord(input: {
+  action: ReportActivityRecord["action"];
+  actorUid?: string;
+  actorEmail?: string;
+  actorLabel: string;
+  detail?: string;
+}) {
+  return {
+    id: randomUUID(),
+    action: input.action,
+    actorLabel: input.actorLabel,
+    createdAt: new Date().toISOString(),
+    ...(input.actorUid ? { actorUid: input.actorUid } : {}),
+    ...(input.actorEmail ? { actorEmail: input.actorEmail } : {}),
+    ...(input.detail ? { detail: input.detail } : {})
+  } satisfies ReportActivityRecord;
 }
 
 function assertReportAccess(data: StoredReport, access?: ReportAccessContext) {
@@ -93,6 +117,7 @@ function assertReportAccess(data: StoredReport, access?: ReportAccessContext) {
 export async function createQueuedReport(input: {
   id: string;
   ownerUid: string;
+  ownerEmail?: string;
   shopName: string;
   salesName: string;
   visitDate: string;
@@ -108,17 +133,27 @@ export async function createQueuedReport(input: {
     await ref.set({
       status: "queued",
       ownerUid: input.ownerUid,
+      ownerEmail: input.ownerEmail || input.ownerUid,
       shopName: input.shopName,
       salesName: input.salesName,
       visitDate: input.visitDate,
     sessionHash: input.sessionHash,
     originalFileName: input.fileName,
     originalMimeType: input.mimeType,
-    originalFileSize: input.fileSize,
-    processingAttempts: 0,
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-    expiresAt
+      originalFileSize: input.fileSize,
+      processingAttempts: 0,
+      activityLog: [
+        createActivityRecord({
+          action: "created",
+          actorUid: input.ownerUid,
+          actorEmail: input.ownerEmail,
+          actorLabel: input.ownerEmail || input.ownerUid,
+          detail: "建立報告"
+        })
+      ],
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt
   });
 }
 
@@ -229,6 +264,13 @@ export async function completeReport(id: string, report: VisitReportGeneration) 
       uncertaintyNotes: report.uncertaintyNotes,
       processingLeaseExpiresAt: FieldValue.delete(),
       objectPath: FieldValue.delete(),
+      activityLog: FieldValue.arrayUnion(
+        createActivityRecord({
+          action: "completed",
+          actorLabel: "系統",
+          detail: "完成報告整理"
+        })
+      ),
       updatedAt: FieldValue.serverTimestamp()
     },
     { merge: true }
@@ -242,6 +284,33 @@ export async function failReport(id: string, errorMessage: string) {
       status: "failed",
       errorMessage,
       processingLeaseExpiresAt: FieldValue.delete(),
+      activityLog: FieldValue.arrayUnion(
+        createActivityRecord({
+          action: "failed",
+          actorLabel: "系統",
+          detail: errorMessage
+        })
+      ),
+      updatedAt: FieldValue.serverTimestamp()
+    },
+    { merge: true }
+  );
+}
+
+export async function appendReportActivity(
+  id: string,
+  activity: {
+    action: ReportActivityRecord["action"];
+    actorUid?: string;
+    actorEmail?: string;
+    actorLabel: string;
+    detail?: string;
+  }
+) {
+  const ref = getDb().collection(REPORT_COLLECTION).doc(id);
+  await ref.set(
+    {
+      activityLog: FieldValue.arrayUnion(createActivityRecord(activity)),
       updatedAt: FieldValue.serverTimestamp()
     },
     { merge: true }

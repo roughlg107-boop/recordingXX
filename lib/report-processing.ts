@@ -22,6 +22,7 @@ import { toErrorMessage } from "@/lib/errors";
 type QueueInput = {
   reportId: string;
   ownerUid: string;
+  ownerEmail?: string;
   sessionHash: string;
   shopName: string;
   salesName: string;
@@ -40,6 +41,7 @@ export async function queueReportJob(input: QueueInput) {
     await createQueuedReport({
       id: input.reportId,
       ownerUid: input.ownerUid,
+      ownerEmail: input.ownerEmail,
       sessionHash: input.sessionHash,
       shopName: input.shopName,
       salesName: input.salesName,

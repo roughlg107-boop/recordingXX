@@ -7,7 +7,7 @@ import { Download, RefreshCcw } from "lucide-react";
 
 import type { VisitReportRecord } from "@/lib/types";
 import { readLocalProviderSettings } from "@/lib/client-settings";
-import { formatDisplayDate, formatVisitDate } from "@/lib/formatters";
+import { formatDisplayDate, formatReportActivityAction, formatVisitDate } from "@/lib/formatters";
 import { StatusPill } from "@/components/status-pill";
 
 export function ReportView({ initialReport }: { initialReport: VisitReportRecord }) {
@@ -150,6 +150,10 @@ export function ReportView({ initialReport }: { initialReport: VisitReportRecord
               <strong>{formatVisitDate(report.visitDate)}</strong>
             </div>
             <div className="meta-item">
+              <span>建立者</span>
+              <strong>{report.ownerEmail || "未記錄"}</strong>
+            </div>
+            <div className="meta-item">
               <span>到期時間</span>
               <strong>{expiryLabel}</strong>
             </div>
@@ -231,6 +235,25 @@ export function ReportView({ initialReport }: { initialReport: VisitReportRecord
                   </ul>
                 ) : (
                   <p>目前沒有額外待確認事項。</p>
+                )}
+              </article>
+
+              <article className="report-card" style={{ gridColumn: "1 / -1" }}>
+                <h3>操作紀錄</h3>
+                {report.activityLog.length ? (
+                  <ul className="activity-list">
+                    {report.activityLog.map((item) => (
+                      <li key={item.id}>
+                        <strong>{item.actorLabel}</strong>
+                        <span>
+                          {formatReportActivityAction(item.action)} · {formatDisplayDate(item.createdAt)}
+                        </span>
+                        {item.detail ? <p>{item.detail}</p> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>目前還沒有操作紀錄。</p>
                 )}
               </article>
             </div>
