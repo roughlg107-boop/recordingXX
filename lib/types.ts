@@ -10,6 +10,12 @@ export type ReportActivityRecord = {
   detail?: string;
 };
 
+export type RecentReportActivityRecord = ReportActivityRecord & {
+  reportId: string;
+  shopName: string;
+  ownerEmail?: string;
+};
+
 export type VisitReportRecord = VisitReportGeneration & {
   id: string;
   status: ReportStatus;

@@ -6,7 +6,7 @@ import { REPORT_COLLECTION, REPORT_RETENTION_HOURS } from "@/lib/constants";
 import { getDb } from "@/lib/firebase-admin";
 import { AppError } from "@/lib/errors";
 import type { VisitReportGeneration } from "@/lib/report-schema";
-import type { ReportActivityRecord, VisitReportRecord } from "@/lib/types";
+import type { RecentReportActivityRecord, ReportActivityRecord, VisitReportRecord } from "@/lib/types";
 
 type StoredReport = {
   status: "queued" | "processing" | "completed" | "failed";
@@ -315,6 +315,33 @@ export async function appendReportActivity(
     },
     { merge: true }
   );
+}
+
+export async function listRecentReportActivities(limit = 30) {
+  const queryLimit = Math.max(limit, 12);
+  const snapshot = await getDb()
+    .collection(REPORT_COLLECTION)
+    .orderBy("updatedAt", "desc")
+    .limit(queryLimit)
+    .get();
+
+  const activities = snapshot.docs.flatMap((document) => {
+    const data = document.data() as StoredReport;
+
+    return (data.activityLog || []).map(
+      (activity) =>
+        ({
+          ...activity,
+          reportId: document.id,
+          shopName: data.shopName,
+          ownerEmail: data.ownerEmail
+        }) satisfies RecentReportActivityRecord
+    );
+  });
+
+  return activities
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, limit);
 }
 
 export async function getReport(id: string, access?: ReportAccessContext) {
