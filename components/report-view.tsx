@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Download, RefreshCcw } from "lucide-react";
 
 import type { VisitReportRecord } from "@/lib/types";
@@ -10,6 +11,7 @@ import { formatDisplayDate, formatVisitDate } from "@/lib/formatters";
 import { StatusPill } from "@/components/status-pill";
 
 export function ReportView({ initialReport }: { initialReport: VisitReportRecord }) {
+  const router = useRouter();
   const [report, setReport] = useState(initialReport);
   const [pollError, setPollError] = useState("");
 
@@ -36,6 +38,12 @@ export function ReportView({ initialReport }: { initialReport: VisitReportRecord
         });
 
         const payload = (await response.json()) as { message?: string; report?: VisitReportRecord };
+
+        if (response.status === 401) {
+          router.replace("/login");
+          router.refresh();
+          return;
+        }
 
         if (!response.ok) {
           throw new Error(payload.message || "無法啟動報告處理。");
@@ -67,7 +75,7 @@ export function ReportView({ initialReport }: { initialReport: VisitReportRecord
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [report.id, report.processingLeaseExpiresAt, report.status]);
+  }, [report.id, report.processingLeaseExpiresAt, report.status, router]);
 
   useEffect(() => {
     if (report.status === "completed" || report.status === "failed") {
@@ -79,6 +87,12 @@ export function ReportView({ initialReport }: { initialReport: VisitReportRecord
         const response = await fetch(`/api/reports/${report.id}/status`, {
           cache: "no-store"
         });
+
+        if (response.status === 401) {
+          router.replace("/login");
+          router.refresh();
+          return;
+        }
 
         if (!response.ok) {
           throw new Error("無法取得最新狀態。");
@@ -93,7 +107,7 @@ export function ReportView({ initialReport }: { initialReport: VisitReportRecord
     }, 4000);
 
     return () => window.clearInterval(timer);
-  }, [report.id, report.status]);
+  }, [report.id, report.status, router]);
 
   const expiryLabel = useMemo(() => formatDisplayDate(report.expiresAt), [report.expiresAt]);
 

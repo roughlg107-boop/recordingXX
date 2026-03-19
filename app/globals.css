@@ -138,6 +138,22 @@ code {
   font-size: 0.9rem;
 }
 
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  max-width: min(280px, 100%);
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(78, 215, 205, 0.08);
+  color: var(--text);
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .nav-links {
   display: inline-flex;
   align-items: center;
@@ -259,6 +275,11 @@ code {
   position: relative;
   z-index: 1;
   padding: 28px;
+}
+
+.auth-panel {
+  width: min(560px, 100%);
+  margin: 48px auto 0;
 }
 
 .hero-panel,
@@ -453,6 +474,36 @@ code {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.045);
   color: var(--text);
+}
+
+.input-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 0 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-soft);
+}
+
+.input-with-icon input {
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.input-with-icon input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.input-with-icon:focus-within {
+  border-color: rgba(78, 215, 205, 0.5);
+  box-shadow: 0 0 0 4px rgba(78, 215, 205, 0.12);
 }
 
 .field input,

@@ -2,6 +2,7 @@ import { after, NextRequest } from "next/server";
 
 import { getServerEnv } from "@/lib/env";
 import { AppError, toErrorMessage } from "@/lib/errors";
+import { requireAuthenticatedRequest } from "@/lib/firebase-auth";
 import { claimReportForProcessing, getReportStatus } from "@/lib/firestore-reports";
 import { processReportJob } from "@/lib/report-processing";
 import { providerValidationSchema } from "@/lib/report-schema";
@@ -18,13 +19,24 @@ export async function POST(
 ) {
   try {
     const { reportId } = await context.params;
+    const authUser = await requireAuthenticatedRequest(request);
     const env = getServerEnv();
     const session = requireClientSession(request, env.rateLimitSalt);
     const payload = providerValidationSchema.parse(await request.json());
-    const claim = await claimReportForProcessing(reportId, session.sessionHash, env.processingLeaseMs);
+    const claim = await claimReportForProcessing(
+      reportId,
+      {
+        sessionHash: session.sessionHash,
+        ownerUid: authUser.uid
+      },
+      env.processingLeaseMs
+    );
 
     if (!claim) {
-      const report = await getReportStatus(reportId, session.sessionHash);
+      const report = await getReportStatus(reportId, {
+        sessionHash: session.sessionHash,
+        ownerUid: authUser.uid
+      });
 
       if (!report) {
         throw new AppError("找不到這份報告，可能已到期。", 404, "report_not_found");
@@ -45,7 +57,10 @@ export async function POST(
       });
     });
 
-    const report = await getReportStatus(reportId, session.sessionHash);
+    const report = await getReportStatus(reportId, {
+      sessionHash: session.sessionHash,
+      ownerUid: authUser.uid
+    });
     return jsonResponse({ ok: true, report }, 202);
   } catch (error) {
     const appError =

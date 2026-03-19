@@ -10,6 +10,16 @@ env:
     value: recording-6ea14-recordingxx-audio
   - variable: FIREBASE_DATABASE_ID
     value: (default)
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyDfQSlOce8gHXg1jlFnEmLub3eZNTOyvNk"
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "recording-6ea14.firebaseapp.com"
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "recording-6ea14"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:765721937847:web:841e66bc6045c291350a32"
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "765721937847"
   - variable: APP_BASE_URL
     value: https://recordingxx--recording-6ea14.asia-east1.hosted.app/
   - variable: RATE_LIMIT_SALT

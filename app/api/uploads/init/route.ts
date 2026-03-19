@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { getServerEnv } from "@/lib/env";
 import { AppError, toErrorMessage } from "@/lib/errors";
+import { requireAuthenticatedRequest } from "@/lib/firebase-auth";
 import { visitReportInputSchema } from "@/lib/report-schema";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getOrCreateClientSession, setClientSessionCookie } from "@/lib/session";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
+    const authUser = await requireAuthenticatedRequest(request);
     const input = visitReportInputSchema.parse(await request.json());
     const env = getServerEnv();
 
@@ -27,6 +29,7 @@ export async function POST(request: NextRequest) {
     const session = getOrCreateClientSession(request, env.rateLimitSalt);
     await consumeRateLimit(session.sessionHash, env.rateLimitMaxRequests, env.rateLimitWindowMs);
     const uploadSessionId = await createUploadSession({
+      ownerUid: authUser.uid,
       sessionHash: session.sessionHash,
       fileName: input.fileName,
       fileSize: input.fileSize,

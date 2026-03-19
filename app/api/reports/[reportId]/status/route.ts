@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { getServerEnv } from "@/lib/env";
 import { getReportStatus } from "@/lib/firestore-reports";
 import { AppError, toErrorMessage } from "@/lib/errors";
+import { requireAuthenticatedRequest } from "@/lib/firebase-auth";
 import { requireClientSession } from "@/lib/session";
 import { jsonResponse } from "@/lib/utils";
 
@@ -15,9 +16,13 @@ export async function GET(
 ) {
   try {
     const { reportId } = await context.params;
+    const authUser = await requireAuthenticatedRequest(request);
     const env = getServerEnv();
     const session = requireClientSession(request, env.rateLimitSalt);
-    const report = await getReportStatus(reportId, session.sessionHash);
+    const report = await getReportStatus(reportId, {
+      sessionHash: session.sessionHash,
+      ownerUid: authUser.uid
+    });
 
     if (!report) {
       return jsonResponse({ ok: false, message: "找不到這份報告，可能已到期。" }, 404);

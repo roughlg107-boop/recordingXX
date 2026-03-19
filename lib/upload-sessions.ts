@@ -7,6 +7,7 @@ import { UPLOAD_SESSION_COLLECTION } from "@/lib/constants";
 import { AppError } from "@/lib/errors";
 
 type StoredUploadSession = {
+  ownerUid?: string;
   sessionHash: string;
   fileName: string;
   fileSize: number;
@@ -17,6 +18,7 @@ type StoredUploadSession = {
 };
 
 export async function createUploadSession(input: {
+  ownerUid: string;
   sessionHash: string;
   fileName: string;
   fileSize: number;
@@ -29,6 +31,7 @@ export async function createUploadSession(input: {
     .collection(UPLOAD_SESSION_COLLECTION)
     .doc(id)
     .set({
+      ownerUid: input.ownerUid,
       sessionHash: input.sessionHash,
       fileName: input.fileName,
       fileSize: input.fileSize,
@@ -42,6 +45,7 @@ export async function createUploadSession(input: {
 
 export async function consumeUploadSession(input: {
   uploadSessionId: string;
+  ownerUid: string;
   sessionHash: string;
   fileName: string;
   fileSize: number;
@@ -65,6 +69,10 @@ export async function consumeUploadSession(input: {
 
     if (data.sessionHash !== input.sessionHash) {
       throw new AppError("上傳工作不屬於目前的瀏覽器工作階段。", 403, "upload_session_mismatch");
+    }
+
+    if (data.ownerUid && data.ownerUid !== input.ownerUid) {
+      throw new AppError("上傳工作不屬於目前登入帳號。", 403, "upload_session_owner_mismatch");
     }
 
     if (data.consumedAt) {

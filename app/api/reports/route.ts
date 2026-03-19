@@ -5,6 +5,7 @@ import { Readable } from "stream";
 
 import { getServerEnv } from "@/lib/env";
 import { AppError, toErrorMessage } from "@/lib/errors";
+import { requireAuthenticatedRequest } from "@/lib/firebase-auth";
 import { queueReportJob } from "@/lib/report-processing";
 import { reportSubmissionSchema } from "@/lib/report-schema";
 import { acquireActiveJobSlot, releaseActiveJobSlot } from "@/lib/rate-limit";
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest) {
   let queuedSuccessfully = false;
 
   try {
+    const authUser = await requireAuthenticatedRequest(request);
     const formData = await request.formData();
     const file = formData.get("audio");
 
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest) {
 
     await consumeUploadSession({
       uploadSessionId: tokenPayload.uploadSessionId,
+      ownerUid: authUser.uid,
       sessionHash,
       fileName: file.name,
       fileSize: file.size,
@@ -71,6 +74,7 @@ export async function POST(request: NextRequest) {
 
     await queueReportJob({
       reportId,
+      ownerUid: authUser.uid,
       sessionHash,
       shopName: fields.shopName,
       salesName: fields.salesName,

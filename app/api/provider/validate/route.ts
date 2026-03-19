@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { providerValidationSchema } from "@/lib/report-schema";
 import { validateProviderSettings } from "@/lib/ai-provider";
 import { AppError, toErrorMessage } from "@/lib/errors";
+import { requireAuthenticatedRequest } from "@/lib/firebase-auth";
 import { jsonResponse } from "@/lib/utils";
 
 export const runtime = "nodejs";
@@ -11,6 +12,7 @@ export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAuthenticatedRequest(request);
     const payload = providerValidationSchema.parse(await request.json());
     await validateProviderSettings(payload);
     return jsonResponse({

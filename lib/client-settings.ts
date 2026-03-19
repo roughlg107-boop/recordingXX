@@ -9,7 +9,8 @@ export type LocalProviderSettings = {
   reportModel: string;
 };
 
-export const LOCAL_SETTINGS_KEY = "recordingxx.openai-settings";
+export const LOCAL_SETTINGS_KEY = "recordingxx.ai-settings";
+const LEGACY_LOCAL_SETTINGS_KEY = "recordingxx.openai-settings";
 
 const defaultSettings: LocalProviderSettings = {
   provider: "openai",
@@ -23,7 +24,9 @@ export function readLocalProviderSettings(): LocalProviderSettings {
     return defaultSettings;
   }
 
-  const raw = window.localStorage.getItem(LOCAL_SETTINGS_KEY);
+  const raw =
+    window.localStorage.getItem(LOCAL_SETTINGS_KEY) ||
+    window.localStorage.getItem(LEGACY_LOCAL_SETTINGS_KEY);
 
   if (!raw) {
     return defaultSettings;
@@ -46,4 +49,5 @@ export function readLocalProviderSettings(): LocalProviderSettings {
 
 export function writeLocalProviderSettings(settings: LocalProviderSettings) {
   window.localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings));
+  window.localStorage.removeItem(LEGACY_LOCAL_SETTINGS_KEY);
 }

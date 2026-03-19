@@ -1,21 +1,21 @@
 import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
-import { SettingsForm } from "@/components/settings-form";
+import { LoginForm } from "@/components/login-form";
 import { getAuthenticatedPageUser } from "@/lib/firebase-auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
+export default async function LoginPage() {
   const user = await getAuthenticatedPageUser();
 
-  if (!user) {
-    redirect("/login");
+  if (user) {
+    redirect("/");
   }
 
   return (
-    <AppShell title="模型設定" subtitle="切換平台與模型">
-      <SettingsForm />
+    <AppShell title="登入" subtitle="使用公司帳號登入" hideNavigation>
+      <LoginForm />
     </AppShell>
   );
 }

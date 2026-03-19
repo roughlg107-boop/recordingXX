@@ -8,6 +8,7 @@ import type { VisitReportRecord } from "@/lib/types";
 
 type StoredReport = {
   status: "queued" | "processing" | "completed" | "failed";
+  ownerUid?: string;
   shopName: string;
   salesName: string;
   visitDate: string;
@@ -41,6 +42,11 @@ export type ReportProcessingClaim = {
   mimeType: string;
 };
 
+type ReportAccessContext = {
+  sessionHash?: string;
+  ownerUid?: string;
+};
+
 function serializeReport(id: string, data: StoredReport): VisitReportRecord {
   return {
     id,
@@ -66,14 +72,27 @@ function getExpiryTimestamp() {
   return Timestamp.fromDate(new Date(Date.now() + REPORT_RETENTION_HOURS * 60 * 60 * 1000));
 }
 
-function assertReportSessionAccess(data: StoredReport, sessionHash?: string) {
-  if (sessionHash && data.sessionHash && data.sessionHash !== sessionHash) {
+function assertReportAccess(data: StoredReport, access?: ReportAccessContext) {
+  if (!access) {
+    return;
+  }
+
+  if (data.ownerUid && access.ownerUid && data.ownerUid !== access.ownerUid) {
+    throw new AppError("這份報告不屬於目前登入帳號。", 403, "report_owner_mismatch");
+  }
+
+  if (data.ownerUid && !access.ownerUid) {
+    throw new AppError("請先登入後再查看報告。", 401, "auth_required");
+  }
+
+  if (access.sessionHash && data.sessionHash && data.sessionHash !== access.sessionHash) {
     throw new AppError("這份報告不屬於目前的瀏覽器工作階段。", 403, "report_session_mismatch");
   }
 }
 
 export async function createQueuedReport(input: {
   id: string;
+  ownerUid: string;
   shopName: string;
   salesName: string;
   visitDate: string;
@@ -86,11 +105,12 @@ export async function createQueuedReport(input: {
   const ref = db.collection(REPORT_COLLECTION).doc(input.id);
   const expiresAt = getExpiryTimestamp();
 
-  await ref.set({
-    status: "queued",
-    shopName: input.shopName,
-    salesName: input.salesName,
-    visitDate: input.visitDate,
+    await ref.set({
+      status: "queued",
+      ownerUid: input.ownerUid,
+      shopName: input.shopName,
+      salesName: input.salesName,
+      visitDate: input.visitDate,
     sessionHash: input.sessionHash,
     originalFileName: input.fileName,
     originalMimeType: input.mimeType,
@@ -115,7 +135,7 @@ export async function attachReportAudio(id: string, objectPath: string) {
 
 export async function claimReportForProcessing(
   id: string,
-  sessionHash: string,
+  access: ReportAccessContext,
   processingLeaseMs: number
 ) {
   const db = getDb();
@@ -137,9 +157,7 @@ export async function claimReportForProcessing(
       return;
     }
 
-    if (data.sessionHash !== sessionHash) {
-      throw new AppError("這份報告不屬於目前的瀏覽器工作階段。", 403, "report_session_mismatch");
-    }
+    assertReportAccess(data, access);
 
     if (!data.objectPath || !data.originalFileName) {
       throw new AppError("錄音檔尚未準備完成，請稍後再試。", 409, "audio_not_ready");
@@ -169,7 +187,7 @@ export async function claimReportForProcessing(
 
     claim = {
       reportId: snapshot.id,
-      sessionHash,
+      sessionHash: access.sessionHash || "",
       shopName: data.shopName,
       salesName: data.salesName,
       visitDate: data.visitDate,
@@ -230,7 +248,7 @@ export async function failReport(id: string, errorMessage: string) {
   );
 }
 
-export async function getReport(id: string, sessionHash?: string) {
+export async function getReport(id: string, access?: ReportAccessContext) {
   const snapshot = await getDb().collection(REPORT_COLLECTION).doc(id).get();
   if (!snapshot.exists) {
     return null;
@@ -241,12 +259,12 @@ export async function getReport(id: string, sessionHash?: string) {
     return null;
   }
 
-  assertReportSessionAccess(data, sessionHash);
+  assertReportAccess(data, access);
 
   return serializeReport(snapshot.id, data);
 }
 
-export async function getReportStatus(id: string, sessionHash?: string) {
+export async function getReportStatus(id: string, access?: ReportAccessContext) {
   const snapshot = await getDb().collection(REPORT_COLLECTION).doc(id).get();
   if (!snapshot.exists) {
     return null;
@@ -257,13 +275,13 @@ export async function getReportStatus(id: string, sessionHash?: string) {
     return null;
   }
 
-  assertReportSessionAccess(data, sessionHash);
+  assertReportAccess(data, access);
 
   return serializeReport(snapshot.id, data);
 }
 
-export async function assertReportExists(id: string, sessionHash?: string) {
-  const report = await getReport(id, sessionHash);
+export async function assertReportExists(id: string, access?: ReportAccessContext) {
+  const report = await getReport(id, access);
   if (!report) {
     throw new AppError("找不到這份報告，可能已到期。", 404, "report_not_found");
   }

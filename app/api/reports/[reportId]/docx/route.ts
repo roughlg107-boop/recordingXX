@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { getServerEnv } from "@/lib/env";
 import { buildReportDocx } from "@/lib/docx";
 import { AppError, toErrorMessage } from "@/lib/errors";
+import { requireAuthenticatedRequest } from "@/lib/firebase-auth";
 import { assertReportExists } from "@/lib/firestore-reports";
 import { requireClientSession } from "@/lib/session";
 
@@ -16,9 +17,13 @@ export async function GET(
 ) {
   try {
     const { reportId } = await context.params;
+    const authUser = await requireAuthenticatedRequest(request);
     const env = getServerEnv();
     const session = requireClientSession(request, env.rateLimitSalt);
-    const report = await assertReportExists(reportId, session.sessionHash);
+    const report = await assertReportExists(reportId, {
+      sessionHash: session.sessionHash,
+      ownerUid: authUser.uid
+    });
 
     if (report.status !== "completed") {
       return Response.json({ ok: false, message: "報告尚未完成，暫時無法下載。" }, { status: 409 });

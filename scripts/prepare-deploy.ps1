@@ -6,6 +6,14 @@ param(
 
   [string] $BackendName = "recordingxx",
 
+  [string] $FirebaseApiKey = "AIzaSyDfQSlOce8gHXg1jlFnEmLub3eZNTOyvNk",
+
+  [string] $FirebaseAuthDomain,
+
+  [string] $FirebaseAppId = "1:765721937847:web:841e66bc6045c291350a32",
+
+  [string] $FirebaseMessagingSenderId = "765721937847",
+
   [string] $AppBaseUrl = "https://REPLACE_AFTER_BACKEND_CREATE",
 
   [string] $RateLimitSalt,
@@ -44,6 +52,10 @@ if (-not $StorageBucket) {
   $StorageBucket = "$ProjectId-recordingxx-audio"
 }
 
+if (-not $FirebaseAuthDomain) {
+  $FirebaseAuthDomain = "$ProjectId.firebaseapp.com"
+}
+
 if (-not $RateLimitSalt) {
   $RateLimitSalt = New-RandomSalt
 }
@@ -52,6 +64,11 @@ $envValues = [ordered]@{
   FIREBASE_PROJECT_ID = $ProjectId
   FIREBASE_STORAGE_BUCKET = $StorageBucket
   FIREBASE_DATABASE_ID = "(default)"
+  NEXT_PUBLIC_FIREBASE_API_KEY = $FirebaseApiKey
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = $FirebaseAuthDomain
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID = $ProjectId
+  NEXT_PUBLIC_FIREBASE_APP_ID = $FirebaseAppId
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = $FirebaseMessagingSenderId
   APP_BASE_URL = $AppBaseUrl
   UPLOAD_MAX_BYTES = "104857600"
   UPLOAD_MAX_MINUTES = "90"
@@ -85,6 +102,16 @@ env:
     value: $StorageBucket
   - variable: FIREBASE_DATABASE_ID
     value: (default)
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "$FirebaseApiKey"
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "$FirebaseAuthDomain"
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "$ProjectId"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "$FirebaseAppId"
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "$FirebaseMessagingSenderId"
   - variable: APP_BASE_URL
     value: $AppBaseUrl
   - variable: RATE_LIMIT_SALT

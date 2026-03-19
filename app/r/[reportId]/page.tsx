@@ -1,10 +1,11 @@
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
 import { ReportView } from "@/components/report-view";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 import { getServerEnv } from "@/lib/env";
+import { getAuthenticatedPageUser } from "@/lib/firebase-auth";
 import { getReportStatus } from "@/lib/firestore-reports";
 import { requireClientSessionFromCookieValue } from "@/lib/session";
 
@@ -18,6 +19,11 @@ export default async function ReportPage({
   const { reportId } = await params;
   const env = getServerEnv();
   const cookieStore = await cookies();
+  const user = await getAuthenticatedPageUser();
+
+  if (!user) {
+    redirect("/login");
+  }
 
   let sessionHash = "";
   try {
@@ -29,7 +35,10 @@ export default async function ReportPage({
     notFound();
   }
 
-  const report = await getReportStatus(reportId, sessionHash);
+  const report = await getReportStatus(reportId, {
+    sessionHash,
+    ownerUid: user.uid
+  });
 
   if (!report) {
     notFound();
